@@ -7,8 +7,8 @@ public class TestMulticast {
         List<String> listaMsgs = new ArrayList<>();
         listaMsgs.add("Mensagem teste");
 
-        SendTransmitter transmitter = new SendTransmitter(listaMsgs);
-        transmitter.start();
+        Elemento elemento = new Elemento(listaMsgs);
+        elemento.enviarMensagens();
 
         int numReceivers = 3;
         for (int i = 0; i < numReceivers; i++) {
