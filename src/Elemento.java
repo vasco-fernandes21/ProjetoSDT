@@ -7,7 +7,7 @@ public class Elemento {
         if (this.lider == 1) {
             System.out.println("Processo iniciado como líder. A enviar mensagens...");
             MulticastSender sender = new MulticastSender();
-            sender.start();x
+            sender.start();
         } else {
             System.out.println("Processo iniciado como não-líder. A receber mensagens...");
             MulticastReceiver receiver = new MulticastReceiver();
