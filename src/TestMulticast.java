@@ -6,21 +6,35 @@ public class TestMulticast {
             Elemento lider = new Elemento(1); // Inicia o MulticastSender
         });
 
-        // Cria e inicia o não-líder numa nova thread
-        Thread naoLiderThread = new Thread(() -> {
-            System.out.println("A iniciar não-líder...");
-            Elemento naoLider = new Elemento(0); // Inicia o MulticastReceiver
+        // Cria e inicia múltiplos não-líderes numa nova thread
+        Thread naoLiderThread1 = new Thread(() -> {
+            System.out.println("A iniciar não-líder 1...");
+            Elemento naoLider1 = new Elemento(0); // Inicia o MulticastReceiver
         });
 
-        // Inicia ambas as threads simultaneamente
+        Thread naoLiderThread2 = new Thread(() -> {
+            System.out.println("A iniciar não-líder 2...");
+            Elemento naoLider2 = new Elemento(0); // Inicia o MulticastReceiver
+        });
+
+        Thread naoLiderThread3 = new Thread(() -> {
+            System.out.println("A iniciar não-líder 3...");
+            Elemento naoLider3 = new Elemento(0); // Inicia o MulticastReceiver
+        });
+
+        // Inicia todas as threads simultaneamente
         liderThread.start();
-        naoLiderThread.start();
+        naoLiderThread1.start();
+        naoLiderThread2.start();
+        naoLiderThread3.start();
 
         // Mantém o processo principal a correr
         try {
             // Mantém a execução indefinidamente para monitorizar a comunicação
             liderThread.join();
-            naoLiderThread.join();
+            naoLiderThread1.join();
+            naoLiderThread2.join();
+            naoLiderThread3.join();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
