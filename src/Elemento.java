@@ -1,20 +1,21 @@
-import java.util.List;
-
 public class Elemento {
-    private int lider = 1;
-    private SendTransmitter transmitter;
+    private int lider;
 
-    public Elemento(List<String> listaMsgs) {
-        this.transmitter = new SendTransmitter(listaMsgs);
-    }
+    public Elemento(int lider) {
+        this.lider = lider;
 
-    public int getLider() {
-        return lider;
-    }
-
-    public void enviarMensagens() {
-        if (lider == 1) { // Supondo que lider == 1 significa que este elemento é o líder
-            transmitter.start();
+        if (this.lider == 1) {
+            System.out.println("Processo iniciado como líder. A enviar mensagens...");
+            MulticastSender sender = new MulticastSender();
+            sender.start();x
+        } else {
+            System.out.println("Processo iniciado como não-líder. A receber mensagens...");
+            MulticastReceiver receiver = new MulticastReceiver();
+            receiver.start();
         }
+    }
+
+    public void setLider(int lider) {
+        this.lider = lider;
     }
 }

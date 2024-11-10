@@ -8,7 +8,7 @@ import java.util.List;
 
 public class MulticastReceiver extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
-    private static final int PORT = 4446;
+    private static final int PORT = 4447; 
 
     @Override
     public void run() {
@@ -22,9 +22,7 @@ public class MulticastReceiver extends Thread {
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
 
-                List<String> listmessage = Arrays.asList(message.split(","));
-
-                System.out.println("Mensagem recebida: " + listmessage);
+                System.out.println("Mensagem recebida: " + message);
             }
         } catch (IOException e) {
             e.printStackTrace();

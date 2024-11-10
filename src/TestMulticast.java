@@ -1,21 +1,30 @@
-import java.util.ArrayList;
-import java.util.List;
-
 public class TestMulticast {
-    public static void runTest() {
-        List<String> listaMsgs = new ArrayList<>();
-        listaMsgs.add("Mensagem teste");
-
-        Elemento elemento = new Elemento(listaMsgs);
-        elemento.enviarMensagens();
-
-        // Iniciar apenas um receptor
-        new Thread(new Receiver()).start();
-
-        System.out.println("Teste de multicast iniciado com 1 receptor.");
-    }
-
     public static void main(String[] args) {
-        runTest();
+        // Cria e inicia o líder numa nova thread
+        Thread liderThread = new Thread(() -> {
+            System.out.println("A iniciar líder...");
+            Elemento lider = new Elemento(1); // Inicia o MulticastSender
+        });
+
+        // Cria e inicia o não-líder numa nova thread
+        Thread naoLiderThread = new Thread(() -> {
+            System.out.println("A iniciar não-líder...");
+            Elemento naoLider = new Elemento(0); // Inicia o MulticastReceiver
+        });
+
+        // Inicia ambas as threads simultaneamente
+        liderThread.start();
+        naoLiderThread.start();
+
+        // Mantém o processo principal a correr
+        try {
+            // Mantém a execução indefinidamente para monitorizar a comunicação
+            liderThread.join();
+            naoLiderThread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Teste de multicast concluído.");
     }
 }

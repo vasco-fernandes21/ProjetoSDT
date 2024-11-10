@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets;
 
 public class MulticastSender extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
-    private static final int PORT = 4446;
+    private static final int PORT = 4447; 
 
     @Override
     public void run() {
@@ -14,9 +14,8 @@ public class MulticastSender extends Thread {
             InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             while (true) {
                 ListManager list = new ListManager();
-                list.addMsg("Mensagem 1");
-                list.addMsg("Mensagem 2");
-                list.addMsg("Mensagem 3");
+                list.addMsg("Teste 1");
+                list.addMsg("Teste 2");
 
                 String message = String.join(",", list.allMsgs());
 
