@@ -1,6 +1,7 @@
 package Main;
 
 import System.Elemento;
+import RMISystem.RMIClient;
 
 public class TestMulticast {
     public static void main(String[] args) {

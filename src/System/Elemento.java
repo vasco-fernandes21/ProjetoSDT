@@ -2,8 +2,10 @@ package System;
 
 import Network.MulticastReceiver;
 import Network.MulticastSender;
-import RMISystem.ListManager;
+import RMISystem.ListInterface;
 
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.RemoteException;
 import java.util.UUID;
 
@@ -19,10 +21,13 @@ public class Elemento {
         if (this.lider == 1) {
             System.out.println("Processo iniciado como líder. A enviar mensagens...");
             try {
-                ListManager listManager = new ListManager();
+                // Conecta ao RMI Registry e obtém a instância do ListManager
+                Registry registry = LocateRegistry.getRegistry("localhost");
+                ListInterface listManager = (ListInterface) registry.lookup("ListManager");
+
                 MulticastSender sender = new MulticastSender(listManager);
                 sender.start();
-            } catch (RemoteException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         } else {
