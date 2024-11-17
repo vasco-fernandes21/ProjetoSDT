@@ -4,23 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fe89cc6e-f80d-4cd0-bb4f-3c734bf50429" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/Main/TestMulticast.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/Network/MulticastReceiver.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/Network/MulticastSender.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/Network/RMIClient.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/RMISystem/ListInterface.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/RMISystem/ListManager.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/RMISystem/RMIRegistrySetup.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/System/Elemento.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Elemento.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/ListInterface.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/ListManager.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/MulticastReceiver.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/MulticastSender.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/TestMulticast.java" beforeDir="false" />
-    </list>
+    <list default="true" id="fe89cc6e-f80d-4cd0-bb4f-3c734bf50429" name="Changes" comment="testes e alterações" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -107,8 +91,17 @@
       <workItem from="1731248457838" duration="1841000" />
       <workItem from="1731595176225" duration="1232000" />
       <workItem from="1731856267201" duration="3441000" />
-      <workItem from="1731861114528" duration="3795000" />
+      <workItem from="1731861114528" duration="4482000" />
     </task>
+    <task id="LOCAL-00001" summary="testes e alterações">
+      <option name="closed" value="true" />
+      <created>1731869104326</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1731869104326</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -116,5 +109,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
+    <MESSAGE value="testes e alterações" />
+    <option name="LAST_COMMIT_MESSAGE" value="testes e alterações" />
   </component>
 </project>
