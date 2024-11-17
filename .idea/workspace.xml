@@ -5,12 +5,33 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fe89cc6e-f80d-4cd0-bb4f-3c734bf50429" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/Main/TestMulticast.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/Network/MulticastReceiver.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/Network/MulticastSender.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/Network/RMIClient.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RMISystem/ListInterface.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RMISystem/ListManager.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/RMISystem/RMIRegistrySetup.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/System/Elemento.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Elemento.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ListInterface.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ListManager.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/MulticastReceiver.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/MulticastSender.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/TestMulticast.java" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
@@ -19,6 +40,9 @@
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="ProjectErrors" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
@@ -35,6 +59,7 @@
   "keyToString": {
     "ASKED_ADD_EXTERNAL_FILES": "true",
     "Application.Main.executor": "Run",
+    "Application.RMIRegistrySetup.executor": "Run",
     "Application.TestMulticast.executor": "Run",
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -50,16 +75,23 @@
   }
 }]]></component>
   <component name="RunManager">
-    <configuration name="Main" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="Main" />
+    <configuration name="RMIRegistrySetup" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="RMISystem.RMIRegistrySetup" />
       <module name="ProjetoSDT" />
+      <option name="PROGRAM_PARAMETERS" value="1099" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="RMISystem.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Application.Main" />
+        <item itemvalue="Application.RMIRegistrySetup" />
       </list>
     </recent_temporary>
   </component>
@@ -73,7 +105,9 @@
       <updated>1730988748671</updated>
       <workItem from="1730988749820" duration="1000" />
       <workItem from="1731248457838" duration="1841000" />
-      <workItem from="1731595176225" duration="639000" />
+      <workItem from="1731595176225" duration="1232000" />
+      <workItem from="1731856267201" duration="3441000" />
+      <workItem from="1731861114528" duration="3795000" />
     </task>
     <servers />
   </component>

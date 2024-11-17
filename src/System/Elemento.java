@@ -1,18 +1,30 @@
+package System;
+
+import Network.MulticastReceiver;
+import Network.MulticastSender;
+import RMISystem.ListManager;
+
+import java.rmi.RemoteException;
 import java.util.UUID;
 
 public class Elemento {
-    private int lider;
+    private int lider; // 1 para líder, 0 para não-líder
     private final String uuid;
 
     public Elemento(int lider) {
         this.lider = lider;
-        this.uuid = UUID.randomUUID().toString(); // Gera um UUID fixo para o elemento
+        this.uuid = UUID.randomUUID().toString();
         System.out.println("UUID do elemento: " + this.uuid);
 
         if (this.lider == 1) {
             System.out.println("Processo iniciado como líder. A enviar mensagens...");
-            MulticastSender sender = new MulticastSender();
-            sender.start();
+            try {
+                ListManager listManager = new ListManager();
+                MulticastSender sender = new MulticastSender(listManager);
+                sender.start();
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
         } else {
             System.out.println("Processo iniciado como não-líder. A receber mensagens...");
             MulticastReceiver receiver = new MulticastReceiver(this.uuid);
