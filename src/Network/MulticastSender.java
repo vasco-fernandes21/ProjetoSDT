@@ -26,7 +26,6 @@ public class MulticastSender extends Thread {
         try (MulticastSocket socket = new MulticastSocket(PORT)) {
             InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             socket.joinGroup(group);
-            System.out.println("Socket de Multicast unido ao grupo " + MULTICAST_GROUP_ADDRESS);
 
             while (true) {
                 // Obter a lista atual de documentos
@@ -78,7 +77,7 @@ public class MulticastSender extends Thread {
 
         try (DatagramSocket ackSocket = new DatagramSocket(ACK_PORT)) {
             ackSocket.setSoTimeout(2000);
-            System.out.println("A esperar ACKs...");
+            System.out.println("Aguardando ACKs...");
 
             while (receivedAcks.size() < REQUIRED_ACKS) {
                 byte[] ackBuffer = new byte[256];

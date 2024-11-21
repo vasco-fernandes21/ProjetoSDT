@@ -79,7 +79,7 @@ public class MulticastReceiver extends Thread {
     }
 
     private void handleCommitMessage() {
-        System.out.println("Commit recebido. A confirmar e aplicar atualizações.");
+        System.out.println("Commit recebido. Confirmando e aplicando atualizações.");
 
         if (!isSynced) {
             applyPendingUpdates();
@@ -90,7 +90,7 @@ public class MulticastReceiver extends Thread {
     }
 
     private void applyPendingUpdates() {
-        System.out.println("A aplicar atualizações pendentes...");
+        System.out.println("Aplicando atualizações pendentes...");
         for (String update : pendingUpdates) {
             String[] parts = update.split(":");
             if (parts.length >= 3) {
@@ -100,6 +100,7 @@ public class MulticastReceiver extends Thread {
             }
         }
         pendingUpdates.clear();
+        savePermanentVersion(); // Salvar a versão permanente após aplicar as atualizações pendentes
     }
 
     private void sendAck(DatagramPacket packet) throws IOException {
