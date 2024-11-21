@@ -5,16 +5,14 @@ import RMISystem.ListInterface;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class MulticastSender extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
     private static final int PORT = 4447;
     private static final int ACK_PORT = 4448;
     private static final int REQUIRED_ACKS = 3;
+
     private final ListInterface listManager;
     private List<String> previousDocs;
 
@@ -28,51 +26,31 @@ public class MulticastSender extends Thread {
         try (MulticastSocket socket = new MulticastSocket(PORT)) {
             InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             socket.joinGroup(group);
+            System.out.println("Socket de Multicast unido ao grupo " + MULTICAST_GROUP_ADDRESS);
 
             while (true) {
                 // Obter a lista atual de documentos
                 List<String> docs = listManager.allMsgs();
 
-                // Verificar se houve mudanças na lista de documentos
+                // Enviar heartbeat de sincronização sempre, independentemente de alterações
+                sendSyncMessage(socket, group, docs);
+
+                // Verificar se houve mudanças na lista de documentos para decidir sobre o commit
                 boolean hasChanges = previousDocs == null || !previousDocs.equals(docs);
 
                 if (hasChanges && !docs.isEmpty()) {
-                    // Enviar heartbeat com a lista de documentos
-                    String heartbeatMessage = "HEARTBEAT:sync:" + String.join(",", docs);
-                    byte[] heartbeatBuffer = heartbeatMessage.getBytes(StandardCharsets.UTF_8);
-                    DatagramPacket packet = new DatagramPacket(heartbeatBuffer, heartbeatBuffer.length, group, PORT);
-                    socket.send(packet);
-                    System.out.println("Heartbeat enviado: " + heartbeatMessage);
-
-                    // Receber ACKs
-                    try (DatagramSocket ackSocket = new DatagramSocket(ACK_PORT)) {
-                        Set<String> receivedAcks = new HashSet<>();
-                        while (receivedAcks.size() < REQUIRED_ACKS) {
-                            byte[] ackBuffer = new byte[256];
-                            DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length);
-                            ackSocket.receive(ackPacket);
-                            String ackMessage = new String(ackPacket.getData(), 0, ackPacket.getLength(), StandardCharsets.UTF_8);
-
-                            // Verifique se o ACK está no formato correto e adicione o UUID
-                            if (ackMessage.startsWith("ACK:")) {
-                                String ackUUID = ackMessage.split(":")[1];
-                                receivedAcks.add(ackUUID);
-                                System.out.println("ACK recebido: " + ackMessage);
-                            }
-                        }
-
+                    // Esperar por ACKs
+                    if (waitForAcks()) {
                         // Enviar mensagem de commit após receber ACKs suficientes
-                        String commitMessage = "HEARTBEAT:commit";
-                        byte[] commitBuffer = commitMessage.getBytes(StandardCharsets.UTF_8);
-                        DatagramPacket commitPacket = new DatagramPacket(commitBuffer, commitBuffer.length, group, PORT);
-                        socket.send(commitPacket);
-                        System.out.println("Commit enviado: " + commitMessage);
+                        sendCommitMessage(socket, group);
 
-                        // Clonar a lista de documentos após commits
+                        // Clonar a lista de documentos após o commit
                         listManager.addClone();
+                    } else {
+                        System.out.println("Não foi possível receber ACKs suficientes.");
                     }
                 } else {
-                    System.out.println("Nenhuma alteração detetada ou lista vazia, não enviando heartbeat ou commit.");
+                    System.out.println("Nenhuma alteração detectada ou lista vazia, não enviando commit.");
                 }
 
                 // Atualizar o estado anterior da lista de documentos
@@ -84,5 +62,53 @@ public class MulticastSender extends Thread {
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    private void sendSyncMessage(MulticastSocket socket, InetAddress group, List<String> docs) throws IOException {
+        String docsString = docs.isEmpty() ? "none" : String.join(",", docs);
+        String heartbeatMessage = "HEARTBEAT:sync:" + docsString;
+        byte[] heartbeatBuffer = heartbeatMessage.getBytes(StandardCharsets.UTF_8);
+        DatagramPacket packet = new DatagramPacket(heartbeatBuffer, heartbeatBuffer.length, group, PORT);
+        socket.send(packet);
+        System.out.println("Heartbeat enviado: " + heartbeatMessage);
+    }
+
+    private boolean waitForAcks() {
+        Set<String> receivedAcks = new HashSet<>();
+
+        try (DatagramSocket ackSocket = new DatagramSocket(ACK_PORT)) {
+            ackSocket.setSoTimeout(2000); // Timeout ajustado para evitar bloqueio excessivo
+            System.out.println("Aguardando ACKs...");
+
+            while (receivedAcks.size() < REQUIRED_ACKS) {
+                byte[] ackBuffer = new byte[256];
+                DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length);
+                try {
+                    ackSocket.receive(ackPacket);
+                    String ackMessage = new String(ackPacket.getData(), 0, ackPacket.getLength(), StandardCharsets.UTF_8);
+                    if (ackMessage.startsWith("ACK:")) {
+                        String ackUUID = ackMessage.split(":")[1];
+                        receivedAcks.add(ackUUID);
+                        System.out.println("ACK recebido: " + ackMessage);
+                    }
+                } catch (SocketTimeoutException e) {
+                    System.out.println("Timeout ao esperar ACKs.");
+                    break;  // Se o tempo de espera for excedido, saímos do loop
+                }
+            }
+
+            return receivedAcks.size() >= REQUIRED_ACKS; // Retorna se o número necessário de ACKs foi recebido
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private void sendCommitMessage(MulticastSocket socket, InetAddress group) throws IOException {
+        String commitMessage = "HEARTBEAT:commit";
+        byte[] commitBuffer = commitMessage.getBytes(StandardCharsets.UTF_8);
+        DatagramPacket commitPacket = new DatagramPacket(commitBuffer, commitBuffer.length, group, PORT);
+        socket.send(commitPacket);
+        System.out.println("Commit enviado: " + commitMessage);
     }
 }

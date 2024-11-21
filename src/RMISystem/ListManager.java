@@ -23,7 +23,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         documentTable.put(docId, s);
         System.out.println("Documento adicionado no líder: " + s + " com ID: " + docId);
         System.out.println("Lista de documentos no líder: " + messageList); // Imprimir para verificar a lista
-    }   
+    }
 
     // Remove um elemento da lista de forma sincronizada
     @Override
@@ -47,5 +47,12 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     public synchronized void addClone() throws RemoteException {
         ArrayList<String> clonedList = new ArrayList<>(messageList);  // Clonando a lista
         System.out.println("Lista clonada: " + clonedList);
+    }
+
+    // Fornece o estado atual da lista (snapshot) para um novo elemento
+    @Override
+    public synchronized ArrayList<String> getSnapshot() throws RemoteException {
+        System.out.println("Snapshot solicitado por um novo elemento. Lista enviada: " + messageList);
+        return new ArrayList<>(messageList); // Retorna uma cópia da lista atual
     }
 }

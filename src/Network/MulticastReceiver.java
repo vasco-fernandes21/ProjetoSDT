@@ -15,12 +15,22 @@ public class MulticastReceiver extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
     private static final int PORT = 4447;
     private static final int ACK_PORT = 4448;
-    private final String uuid;
-    private Map<String, List<String>> documentVersions = new HashMap<>();
-    private Hashtable<String, String> documentTable = new Hashtable<>();
 
-    public MulticastReceiver(String uuid) {
+    private final String uuid;
+    private final Map<String, List<String>> documentVersions = new HashMap<>();
+    private final Hashtable<String, String> documentTable = new Hashtable<>();
+    private final List<String> pendingUpdates = new ArrayList<>();
+    private boolean isSynced;
+
+    public MulticastReceiver(String uuid, List<String> initialSnapshot) {
         this.uuid = uuid;
+        this.isSynced = false; // Indica que o receptor ainda não está sincronizado
+
+        // Inicializa a lista de documentos locais com o snapshot recebido do líder
+        if (initialSnapshot != null) {
+            documentVersions.put(uuid, new ArrayList<>(initialSnapshot));
+            System.out.println("Snapshot inicial recebido: " + initialSnapshot);
+        }
     }
 
     @Override
@@ -28,6 +38,8 @@ public class MulticastReceiver extends Thread {
         try (MulticastSocket socket = new MulticastSocket(PORT)) {
             InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             socket.joinGroup(group);
+            
+            System.out.println("MulticastReceiver iniciado e a ouvir...");
 
             while (true) {
                 byte[] buffer = new byte[256];
@@ -35,29 +47,12 @@ public class MulticastReceiver extends Thread {
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
 
-                if (message.startsWith("HEARTBEAT:sync:")) {
-                    String[] parts = message.split(":");
-                    if (parts.length >= 3) {
-                        List<String> docs = parts[2].equals("none") ? new ArrayList<>() : Arrays.asList(parts[2].split(","));
-                        documentVersions.put(uuid, docs);
-                        System.out.println("Heartbeat recebido com documentos: " + docs);
+                System.out.println("Pacote recebido: " + message); // Log para verificar o pacote recebido
 
-                        // Enviar mensagem de confirmação (ACK)
-                        try (DatagramSocket ackSocket = new DatagramSocket()) {
-                            String ackMessage = "ACK:" + uuid;
-                            byte[] ackBuffer = ackMessage.getBytes(StandardCharsets.UTF_8);
-                            InetAddress leaderAddress = packet.getAddress();
-                            DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length, leaderAddress, ACK_PORT);
-                            ackSocket.send(ackPacket);
-                            System.out.println("Mensagem de confirmação enviada: " + ackMessage);
-                        }
-                    } else {
-                        System.out.println("Mensagem de heartbeat inválida: " + message);
-                    }
+                if (message.startsWith("HEARTBEAT:sync:")) {
+                    handleSyncMessage(message, packet);
                 } else if (message.equals("HEARTBEAT:commit")) {
-                    // Processar a mensagem de commit
-                    System.out.println("Commit recebido. Versão do documento confirmada.");
-                    savePermanentVersion();
+                    handleCommitMessage();
                 }
             }
         } catch (IOException e) {
@@ -65,8 +60,66 @@ public class MulticastReceiver extends Thread {
         }
     }
 
+    private void handleSyncMessage(String message, DatagramPacket packet) throws IOException {
+        String[] parts = message.split(":");
+        if (parts.length >= 3) {
+            List<String> docs = parts[2].equals("none") ? new ArrayList<>() : Arrays.asList(parts[2].split(","));
+
+            if (!isSynced) {
+                // Se ainda não está sincronizado, armazena as mensagens pendentes
+                pendingUpdates.add(message);
+                System.out.println("Mensagem de sincronização pendente armazenada: " + message);
+            } else {
+                // Atualiza os documentos locais se já está sincronizado
+                documentVersions.put(uuid, new ArrayList<>(docs));
+                System.out.println("Heartbeat sincronizado com documentos: " + docs);
+            }
+
+            // Enviar mensagem de confirmação (ACK)
+            sendAck(packet);
+        } else {
+            System.out.println("Mensagem de heartbeat inválida: " + message);
+        }
+    }
+
+    private void handleCommitMessage() {
+        // Processar a mensagem de commit
+        System.out.println("Commit recebido. Confirmando e aplicando atualizações.");
+
+        // Aplica as atualizações pendentes após a sincronização inicial
+        if (!isSynced) {
+            applyPendingUpdates();
+            isSynced = true;
+        } else {
+            savePermanentVersion();
+        }
+    }
+
+    private void applyPendingUpdates() {
+        System.out.println("Aplicando atualizações pendentes...");
+        for (String update : pendingUpdates) {
+            String[] parts = update.split(":");
+            if (parts.length >= 3) {
+                List<String> docs = Arrays.asList(parts[2].split(","));
+                documentVersions.put(uuid, new ArrayList<>(docs));
+                System.out.println("Atualização aplicada: " + docs);
+            }
+        }
+        pendingUpdates.clear(); // Limpa as atualizações pendentes
+    }
+
+    private void sendAck(DatagramPacket packet) throws IOException {
+        try (DatagramSocket ackSocket = new DatagramSocket()) {
+            String ackMessage = "ACK:" + uuid;
+            byte[] ackBuffer = ackMessage.getBytes(StandardCharsets.UTF_8);
+            InetAddress leaderAddress = packet.getAddress();
+            DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length, leaderAddress, ACK_PORT);
+            ackSocket.send(ackPacket);
+            System.out.println("Mensagem de confirmação enviada: " + ackMessage);
+        }
+    }
+
     private void savePermanentVersion() {
-        // Lógica para guardar a versão permanente dos documentos
         List<String> docs = documentVersions.get(uuid);
         if (docs != null) {
             for (String doc : docs) {
@@ -76,7 +129,6 @@ public class MulticastReceiver extends Thread {
             }
         }
         System.out.println("Versão permanente guardada: " + documentTable);
-        // Lógica para uma base de dados ou documento
     }
 
     // Métodos para acessar o conteúdo da Hashtable e do HashMap
