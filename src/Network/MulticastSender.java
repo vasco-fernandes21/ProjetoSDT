@@ -52,7 +52,7 @@ public class MulticastSender extends Thread {
                     // Atualizar o estado anterior da lista de documentos
                     previousDocs = new ArrayList<>(docs);
                 } else {
-                    System.out.println("Nenhuma alteração detectada ou lista vazia, não enviando mensagens.");
+                    System.out.println("Nenhuma alteração detetada ou lista vazia, a aguardar para enviar mensagens.");
                 }
 
                 // Espera 5 segundos antes de verificar novamente

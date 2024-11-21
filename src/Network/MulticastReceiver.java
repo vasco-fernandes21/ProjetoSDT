@@ -38,15 +38,11 @@ public class MulticastReceiver extends Thread {
             InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             socket.joinGroup(group);
             
-            System.out.println("MulticastReceiver iniciado e a ouvir...");
-
             while (true) {
                 byte[] buffer = new byte[256];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
-
-                System.out.println("Pacote recebido: " + message);
 
                 if (message.startsWith("HEARTBEAT:sync:")) {
                     handleSyncMessage(message, packet);
@@ -79,7 +75,7 @@ public class MulticastReceiver extends Thread {
     }
 
     private void handleCommitMessage() {
-        System.out.println("Commit recebido. Confirmando e aplicando atualizações.");
+        System.out.println("Commit recebido. A confirmar e aplicar atualizações.");
 
         if (!isSynced) {
             applyPendingUpdates();
@@ -90,7 +86,7 @@ public class MulticastReceiver extends Thread {
     }
 
     private void applyPendingUpdates() {
-        System.out.println("Aplicando atualizações pendentes...");
+        System.out.println("A aplicar atualizações pendentes...");
         for (String update : pendingUpdates) {
             String[] parts = update.split(":");
             if (parts.length >= 3) {
@@ -100,7 +96,7 @@ public class MulticastReceiver extends Thread {
             }
         }
         pendingUpdates.clear();
-        savePermanentVersion(); // Salvar a versão permanente após aplicar as atualizações pendentes
+        savePermanentVersion(); 
     }
 
     private void sendAck(DatagramPacket packet) throws IOException {
