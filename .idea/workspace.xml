@@ -5,12 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fe89cc6e-f80d-4cd0-bb4f-3c734bf50429" name="Changes" comment="testes e alterações">
+      <change afterPath="$PROJECT_DIR$/src/Main/DocumentViewer.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Main/TestMulticast.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Main/TestMulticast.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Network/MulticastSender.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Network/MulticastSender.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/Network/RMIClient.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Network/RMIClient.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/RMISystem/ListManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/RMISystem/ListManager.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/System/Elemento.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/System/Elemento.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Network/MulticastReceiver.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/Network/MulticastReceiver.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -46,26 +43,26 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_ADD_EXTERNAL_FILES": "true",
-    "Application.Main.executor": "Run",
-    "Application.RMIClient.executor": "Run",
-    "Application.RMIRegistrySetup.executor": "Run",
-    "Application.TestMulticast.executor": "Run",
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "main",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/Users/vascofernandes/Desktop/Licenciatura/3º Ano/Sistemas Distribuidos/ProjetoSDT",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
+    &quot;Application.Main.executor&quot;: &quot;Run&quot;,
+    &quot;Application.RMIClient.executor&quot;: &quot;Run&quot;,
+    &quot;Application.RMIRegistrySetup.executor&quot;: &quot;Run&quot;,
+    &quot;Application.TestMulticast.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/vascofernandes/Desktop/Licenciatura/3º Ano/Sistemas Distribuidos/ProjetoSDT&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration name="RMIRegistrySetup" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="RMISystem.RMIRegistrySetup" />
@@ -99,7 +96,8 @@
       <workItem from="1731248457838" duration="1841000" />
       <workItem from="1731595176225" duration="1232000" />
       <workItem from="1731856267201" duration="3441000" />
-      <workItem from="1731861114528" duration="10680000" />
+      <workItem from="1731861114528" duration="13248000" />
+      <workItem from="1732187458003" duration="321000" />
     </task>
     <task id="LOCAL-00001" summary="testes e alterações">
       <option name="closed" value="true" />

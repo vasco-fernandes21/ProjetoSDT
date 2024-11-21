@@ -23,7 +23,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         documentTable.put(docId, s);
         System.out.println("Documento adicionado no líder: " + s + " com ID: " + docId);
         System.out.println("Lista de documentos no líder: " + messageList); // Imprimir para verificar a lista
-    }
+    }   
 
     // Remove um elemento da lista de forma sincronizada
     @Override

@@ -72,7 +72,7 @@ public class MulticastSender extends Thread {
                         listManager.addClone();
                     }
                 } else {
-                    System.out.println("Nenhuma alteração detectada ou lista vazia, não enviando heartbeat ou commit.");
+                    System.out.println("Nenhuma alteração detetada ou lista vazia, não enviando heartbeat ou commit.");
                 }
 
                 // Atualizar o estado anterior da lista de documentos

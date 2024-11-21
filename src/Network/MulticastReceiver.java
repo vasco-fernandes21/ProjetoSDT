@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.UUID;
 
 public class MulticastReceiver extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
@@ -15,6 +17,7 @@ public class MulticastReceiver extends Thread {
     private static final int ACK_PORT = 4448;
     private final String uuid;
     private Map<String, List<String>> documentVersions = new HashMap<>();
+    private Hashtable<String, String> documentTable = new Hashtable<>();
 
     public MulticastReceiver(String uuid) {
         this.uuid = uuid;
@@ -63,8 +66,25 @@ public class MulticastReceiver extends Thread {
     }
 
     private void savePermanentVersion() {
-        // Lógica para salvar a versão permanente dos documentos
-        System.out.println("Versão permanente salva.");
-        // Aqui você pode adicionar lógica para salvar a versão permanente em um arquivo ou banco de dados
+        // Lógica para guardar a versão permanente dos documentos
+        List<String> docs = documentVersions.get(uuid);
+        if (docs != null) {
+            for (String doc : docs) {
+                String docId = UUID.randomUUID().toString();
+                documentTable.put(docId, doc);
+                System.out.println("Documento guardado permanentemente: " + doc + " com ID: " + docId);
+            }
+        }
+        System.out.println("Versão permanente guardada: " + documentTable);
+        // Lógica para uma base de dados ou documento
+    }
+
+    // Métodos para acessar o conteúdo da Hashtable e do HashMap
+    public Hashtable<String, String> getDocumentTable() {
+        return documentTable;
+    }
+
+    public Map<String, List<String>> getDocumentVersions() {
+        return documentVersions;
     }
 }
