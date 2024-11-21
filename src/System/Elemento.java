@@ -1,12 +1,14 @@
 package System;
 
 import Network.MulticastReceiver;
+import Network.MulticastSender;
 import RMISystem.ListInterface;
 
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.UUID;
 import java.util.ArrayList;
+
 public class Elemento {
     private final String uuid;
 
@@ -16,23 +18,32 @@ public class Elemento {
 
         if (lider == 1) {
             System.out.println("Processo iniciado como líder.");
+            try {
+                Registry registry = LocateRegistry.getRegistry("localhost");
+                ListInterface listManager = (ListInterface) registry.lookup("ListManager");
+
+                MulticastSender sender = new MulticastSender(listManager);
+                sender.start();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         } else {
             System.out.println("Processo iniciado como não-líder. A sincronizar...");
 
             try {
-            Registry registry = LocateRegistry.getRegistry("localhost");
-            ListInterface listManager = (ListInterface) registry.lookup("ListManager");
+                Registry registry = LocateRegistry.getRegistry("localhost");
+                ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
-            // Solicitar snapshot ao líder
-            ArrayList<String> snapshot = listManager.getSnapshot();
-            System.out.println("Snapshot recebido do líder: " + snapshot);
+                // Solicitar snapshot ao líder
+                ArrayList<String> snapshot = listManager.getSnapshot();
+                System.out.println("Snapshot recebido do líder: " + snapshot);
 
-            // Inicializar lista local com o snapshot
-            MulticastReceiver receiver = new MulticastReceiver(this.uuid, snapshot);
-            receiver.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+                // Inicializar lista local com o snapshot
+                MulticastReceiver receiver = new MulticastReceiver(this.uuid, snapshot);
+                receiver.start();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 }

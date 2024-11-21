@@ -24,9 +24,8 @@ public class MulticastReceiver extends Thread {
 
     public MulticastReceiver(String uuid, List<String> initialSnapshot) {
         this.uuid = uuid;
-        this.isSynced = false; // Indica que o receptor ainda não está sincronizado
+        this.isSynced = false;
 
-        // Inicializa a lista de documentos locais com o snapshot recebido do líder
         if (initialSnapshot != null) {
             documentVersions.put(uuid, new ArrayList<>(initialSnapshot));
             System.out.println("Snapshot inicial recebido: " + initialSnapshot);
@@ -47,7 +46,7 @@ public class MulticastReceiver extends Thread {
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
 
-                System.out.println("Pacote recebido: " + message); // Log para verificar o pacote recebido
+                System.out.println("Pacote recebido: " + message);
 
                 if (message.startsWith("HEARTBEAT:sync:")) {
                     handleSyncMessage(message, packet);
@@ -66,16 +65,13 @@ public class MulticastReceiver extends Thread {
             List<String> docs = parts[2].equals("none") ? new ArrayList<>() : Arrays.asList(parts[2].split(","));
 
             if (!isSynced) {
-                // Se ainda não está sincronizado, armazena as mensagens pendentes
                 pendingUpdates.add(message);
                 System.out.println("Mensagem de sincronização pendente armazenada: " + message);
             } else {
-                // Atualiza os documentos locais se já está sincronizado
                 documentVersions.put(uuid, new ArrayList<>(docs));
                 System.out.println("Heartbeat sincronizado com documentos: " + docs);
             }
 
-            // Enviar mensagem de confirmação (ACK)
             sendAck(packet);
         } else {
             System.out.println("Mensagem de heartbeat inválida: " + message);
@@ -83,10 +79,8 @@ public class MulticastReceiver extends Thread {
     }
 
     private void handleCommitMessage() {
-        // Processar a mensagem de commit
-        System.out.println("Commit recebido. Confirmando e aplicando atualizações.");
+        System.out.println("Commit recebido. A confirmar e aplicar atualizações.");
 
-        // Aplica as atualizações pendentes após a sincronização inicial
         if (!isSynced) {
             applyPendingUpdates();
             isSynced = true;
@@ -96,7 +90,7 @@ public class MulticastReceiver extends Thread {
     }
 
     private void applyPendingUpdates() {
-        System.out.println("Aplicando atualizações pendentes...");
+        System.out.println("A aplicar atualizações pendentes...");
         for (String update : pendingUpdates) {
             String[] parts = update.split(":");
             if (parts.length >= 3) {
@@ -105,7 +99,7 @@ public class MulticastReceiver extends Thread {
                 System.out.println("Atualização aplicada: " + docs);
             }
         }
-        pendingUpdates.clear(); // Limpa as atualizações pendentes
+        pendingUpdates.clear();
     }
 
     private void sendAck(DatagramPacket packet) throws IOException {
@@ -131,7 +125,6 @@ public class MulticastReceiver extends Thread {
         System.out.println("Versão permanente guardada: " + documentTable);
     }
 
-    // Métodos para acessar o conteúdo da Hashtable e do HashMap
     public Hashtable<String, String> getDocumentTable() {
         return documentTable;
     }
