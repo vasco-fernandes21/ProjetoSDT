@@ -10,19 +10,23 @@ import java.util.*;
 public class MulticastSender extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
     private static final int PORT = 4447;
-    private static final int ACK_PORT = 4448;
-    private static final int REQUIRED_ACKS = 2;
 
     private final ListInterface listManager;
     private List<String> previousDocs;
+    private final Set<String> receivedAcks;
 
     public MulticastSender(ListInterface listManager) {
         this.listManager = listManager;
         this.previousDocs = null;
+        this.receivedAcks = new HashSet<>();
     }
 
     @Override
     public void run() {
+        // Iniciar a thread AckProcessor
+        AckProcessor ackProcessor = new AckProcessor(receivedAcks);
+        ackProcessor.start();
+
         try (MulticastSocket socket = new MulticastSocket(PORT)) {
             InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             socket.joinGroup(group);
@@ -43,6 +47,9 @@ public class MulticastSender extends Thread {
                         // Enviar mensagem de commit após receber ACKs suficientes
                         sendCommitMessage(socket, group);
 
+                        // Confirmar o commit no ListManager
+                        listManager.commit();
+
                         // Clonar a lista de documentos após o commit
                         listManager.addClone();
                     } else {
@@ -52,7 +59,7 @@ public class MulticastSender extends Thread {
                     // Atualizar o estado anterior da lista de documentos
                     previousDocs = new ArrayList<>(docs);
                 } else {
-                    System.out.println("Nenhuma alteração detetada ou lista vazia, a aguardar para enviar mensagens.");
+                    System.out.println("Nenhuma alteração detectada ou lista vazia, não enviando mensagens.");
                 }
 
                 // Espera 5 segundos antes de verificar novamente
@@ -73,34 +80,13 @@ public class MulticastSender extends Thread {
     }
 
     private boolean waitForAcks() {
-        Set<String> receivedAcks = new HashSet<>();
-
-        try (DatagramSocket ackSocket = new DatagramSocket(ACK_PORT)) {
-            ackSocket.setSoTimeout(2000);
-            System.out.println("Aguardando ACKs...");
-
-            while (receivedAcks.size() < REQUIRED_ACKS) {
-                byte[] ackBuffer = new byte[256];
-                DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length);
-                try {
-                    ackSocket.receive(ackPacket);
-                    String ackMessage = new String(ackPacket.getData(), 0, ackPacket.getLength(), StandardCharsets.UTF_8);
-                    System.out.println("Mensagem de ACK recebida: " + ackMessage); // Log adicional
-                    if (ackMessage.startsWith("ACK:")) {
-                        String ackUUID = ackMessage.split(":")[1];
-                        receivedAcks.add(ackUUID);
-                        System.out.println("ACK processado: " + ackMessage);
-                    }
-                } catch (SocketTimeoutException e) {
-                    System.out.println("Timeout ao esperar ACKs.");
-                    break;
-                }
+        synchronized (receivedAcks) {
+            try {
+                receivedAcks.wait(2000); // Espera por ACKs ou timeout
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
-
-            return receivedAcks.size() >= REQUIRED_ACKS;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
+            return receivedAcks.size() >= 1; // Espera por pelo menos 1 ACK
         }
     }
 
