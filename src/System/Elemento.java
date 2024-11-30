@@ -2,15 +2,19 @@ package System;
 
 import Network.MulticastReceiver;
 import Network.MulticastSender;
+import Network.AckProcessor;
 import RMISystem.ListInterface;
 
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.UUID;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Elemento {
     private final String uuid;
+    private MulticastReceiver receiver;
 
     public Elemento(int lider) {
         this.uuid = UUID.randomUUID().toString();
@@ -22,8 +26,15 @@ public class Elemento {
                 Registry registry = LocateRegistry.getRegistry("localhost");
                 ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
-                MulticastSender sender = new MulticastSender(listManager);
-                sender.start();
+                Set<String> activeNodes = ConcurrentHashMap.newKeySet();
+                AckProcessor ackProcessor = new AckProcessor(activeNodes, 2000, 3);
+
+                // Adicionar nós ativos ao AckProcessor
+                activeNodes.forEach(ackProcessor::addNode);
+
+                MulticastSender sender = new MulticastSender(listManager, activeNodes, ackProcessor);
+                sender.start();  // Inicia a thread do sender
+                System.out.println("Líder iniciado com sucesso.");
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -39,11 +50,18 @@ public class Elemento {
                 System.out.println("Snapshot recebido do líder: " + snapshot);
 
                 // Inicializar lista local com o snapshot
-                MulticastReceiver receiver = new MulticastReceiver(this.uuid, snapshot);
-                receiver.start();
+                receiver = new MulticastReceiver(this.uuid, snapshot);
+                receiver.start();  // Inicia a thread do receiver
+                System.out.println("Não-líder sincronizado com sucesso.");
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    public void stopReceiver() {
+        if (receiver != null) {
+            receiver.stopRunning();
         }
     }
 }

@@ -20,17 +20,15 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
 
     // Adiciona novos documentos à lista de forma sincronizada
     @Override
-    public synchronized void addElement(String s) throws RemoteException {
-        String[] messages = s.split(",");
-        for (String message : messages) {
-            String docId = UUID.randomUUID().toString();
-            messageList.add(message.trim());
-            documentTable.put(docId, message.trim());
-            pendingUpdates.add(message.trim()); // Adiciona a atualização pendente
-            System.out.println("Documento adicionado no líder: " + message.trim() + " com ID: " + docId);
-        }
-        System.out.println("Lista de documentos no líder: " + messageList); // Imprimir para verificar a lista
+   public synchronized void addElement(String s) throws RemoteException {
+    String[] messages = s.split(",");
+    for (String message : messages) {
+        messageList.add(message.trim()); // Adiciona apenas na lista de mensagens
+        pendingUpdates.add(message.trim()); // Marca como atualização pendente
+        System.out.println("Documento adicionado no líder: " + message.trim());
     }
+    System.out.println("Lista de documentos no líder: " + messageList); // Imprimir para verificar a lista
+}
 
     // Remove um elemento da lista de forma sincronizada
     @Override
@@ -60,19 +58,25 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     // Fornece o estado atual da lista (snapshot) para um novo elemento
     @Override
     public synchronized ArrayList<String> getSnapshot() throws RemoteException {
-        System.out.println("Snapshot solicitado por um novo elemento. Lista enviada: " + messageList);
+        System.out.println("Snapshot solicitado por um novo elemento.");
         return new ArrayList<>(messageList);
     }
 
     // Confirma o commit e adiciona os documentos à tabela de documentos
     @Override
     public synchronized void commit() throws RemoteException {
+        // Adiciona documentos confirmados na documentTable
         for (String doc : messageList) {
-            String docId = UUID.randomUUID().toString();
-            documentTable.put(docId, doc);
-            System.out.println("Documento confirmado no líder: " + doc + " com ID: " + docId);
+            if (!documentTable.containsValue(doc)) {  // Verifica se o documento já está na tabela
+                String docId = UUID.randomUUID().toString();
+                documentTable.put(docId, doc);
+                System.out.println("Documento confirmado no líder: " + doc + " com ID: " + docId);
+            }
         }
-        System.out.println("Tabela de documentos no líder: " + documentTable);
+
+        // Limpa a lista de mensagens, pois os documentos foram confirmados
+        messageList.clear();
+        System.out.println("Commit confirmado no líder. Lista de mensagens limpa.");
     }
 
     // Retorna a tabela de documentos confirmados

@@ -28,11 +28,13 @@ public class RMIClient {
 
     public static void main(String[] args) {
         RMIClient client = new RMIClient();
-        // Adicionando um documento
-        String document = "Documento 1";
-        client.addDoc(document);
+        // Adicionando múltiplos documentos
+        String[] documents = {"Documento 1", "Documento 2", "Documento 3"};
+        for (String document : documents) {
+            client.addDoc(document);
+        }
 
-        // Verificar se o documento foi adicionado
+        // Verificar se os documentos foram adicionados
         try {
             System.out.println("Documentos no líder: " + client.listManager.allMsgs());
         } catch (Exception e) {

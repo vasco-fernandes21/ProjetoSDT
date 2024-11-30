@@ -3,13 +3,9 @@ package Network;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class MulticastReceiver extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
@@ -17,10 +13,11 @@ public class MulticastReceiver extends Thread {
     private static final int ACK_PORT = 4448;
 
     private final String uuid;
-    private final Map<String, List<String>> documentVersions = new HashMap<>();
-    private final Hashtable<String, String> documentTable = new Hashtable<>();
-    private final List<String> pendingUpdates = new ArrayList<>();
-    private boolean isSynced;
+    private final Map<String, List<String>> documentVersions = new ConcurrentHashMap<>();
+    private final Map<String, String> documentTable = new ConcurrentHashMap<>();
+    private final List<String> pendingUpdates = new CopyOnWriteArrayList<>();
+    private volatile boolean isSynced;
+    private volatile boolean isRunning = true; // Flag de controle
 
     public MulticastReceiver(String uuid, List<String> initialSnapshot) {
         this.uuid = uuid;
@@ -37,25 +34,25 @@ public class MulticastReceiver extends Thread {
         try (MulticastSocket socket = new MulticastSocket(PORT)) {
             InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             socket.joinGroup(group);
-            
-            System.out.println("MulticastReceiver iniciado e a ouvir...");
 
-            while (true) {
+            while (isRunning) { // Verifica a flag de controle
                 byte[] buffer = new byte[256];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
 
-                System.out.println("Pacote recebido: " + message);
-
                 if (message.startsWith("HEARTBEAT:sync:")) {
                     handleSyncMessage(message, packet);
                 } else if (message.equals("HEARTBEAT:commit")) {
                     handleCommitMessage();
+                } else if (message.startsWith("HEARTBEAT")) {
+                    sendAck(packet, message.split(":")[1]);
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            if (isRunning) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -69,12 +66,14 @@ public class MulticastReceiver extends Thread {
                 System.out.println("Mensagem de sincronização pendente armazenada: " + message);
             } else {
                 for (String doc : docs) {
-                    documentVersions.put(uuid, new ArrayList<>(Arrays.asList(doc.trim())));
-                    System.out.println("Heartbeat sincronizado com documento: " + doc.trim());
+                    if (!doc.equals("none")) {
+                        documentVersions.put(uuid, new ArrayList<>(Arrays.asList(doc.trim())));
+                        System.out.println("Heartbeat sincronizado com documento: " + doc.trim());
+                    }
                 }
             }
 
-            sendAck(packet);
+            sendAck(packet, parts[3]);
         } else {
             System.out.println("Mensagem de heartbeat inválida: " + message);
         }
@@ -92,29 +91,37 @@ public class MulticastReceiver extends Thread {
     }
 
     private void applyPendingUpdates() {
-        System.out.println("Aplicando atualizações pendentes...");
-        for (String update : pendingUpdates) {
-            String[] parts = update.split(":");
-            if (parts.length >= 3) {
-                List<String> docs = Arrays.asList(parts[2].split(","));
-                for (String doc : docs) {
-                    documentVersions.put(uuid, new ArrayList<>(Arrays.asList(doc.trim())));
-                    System.out.println("Atualização aplicada: " + doc.trim());
+        if (!pendingUpdates.isEmpty()) {
+            System.out.println("Aplicando atualizações pendentes...");
+            for (String update : pendingUpdates) {
+                String[] parts = update.split(":");
+                if (parts.length >= 3) {
+                    List<String> docs = Arrays.asList(parts[2].split(","));
+                    for (String doc : docs) {
+                        if (!doc.equals("none")) {
+                            documentVersions.put(uuid, new ArrayList<>(Arrays.asList(doc.trim())));
+                            System.out.println("Atualização aplicada: " + doc.trim());
+
+                            // Agora, salva o documento permanentemente após a atualização
+                            String docId = UUID.randomUUID().toString();
+                            documentTable.put(docId, doc.trim());
+                            System.out.println("Documento guardado permanentemente: " + doc.trim() + " com ID: " + docId);
+                        }
+                    }
                 }
             }
+            pendingUpdates.clear();
         }
-        pendingUpdates.clear();
-        savePermanentVersion(); // Salvar a versão permanente após aplicar as atualizações pendentes
     }
 
-    private void sendAck(DatagramPacket packet) throws IOException {
+    private void sendAck(DatagramPacket packet, String requestId) throws IOException {
         try (DatagramSocket ackSocket = new DatagramSocket()) {
-            String ackMessage = "ACK:" + uuid;
+            String ackMessage = "ACK:" + uuid + ":" + requestId;
             byte[] ackBuffer = ackMessage.getBytes(StandardCharsets.UTF_8);
             InetAddress leaderAddress = packet.getAddress();
             DatagramPacket ackPacket = new DatagramPacket(ackBuffer, ackBuffer.length, leaderAddress, ACK_PORT);
             ackSocket.send(ackPacket);
-            System.out.println("Mensagem de confirmação enviada: " + ackMessage);
+            System.out.println("ACK enviado: " + ackMessage);
         }
     }
 
@@ -122,15 +129,21 @@ public class MulticastReceiver extends Thread {
         List<String> docs = documentVersions.get(uuid);
         if (docs != null) {
             for (String doc : docs) {
-                String docId = UUID.randomUUID().toString();
-                documentTable.put(docId, doc);
-                System.out.println("Documento guardado permanentemente: " + doc + " com ID: " + docId);
+                if (!doc.equals("none")) {
+                    String docId = UUID.randomUUID().toString();
+                    documentTable.put(docId, doc);
+                    System.out.println("Documento guardado permanentemente: " + doc + " com ID: " + docId);
+                }
             }
         }
         System.out.println("Versão permanente guardada: " + documentTable);
     }
 
-    public Hashtable<String, String> getDocumentTable() {
+    public void stopRunning() {
+        isRunning = false;
+    }
+
+    public Map<String, String> getDocumentTable() {
         return documentTable;
     }
 
