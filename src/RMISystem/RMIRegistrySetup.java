@@ -1,21 +1,23 @@
 package RMISystem;
 
+import RMISystem.ListInterface;
+import RMISystem.ListManager;
+
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.rmi.RemoteException;
 
 public class RMIRegistrySetup {
     public static void main(String[] args) {
         try {
-            // Cria uma instância do ListManager
-            ListManager listManager = new ListManager();
+            // Criar o RMI Registry na porta padrão 1099
+            Registry registry = LocateRegistry.createRegistry(1099);
+            System.out.println("RMI Registry criado na porta 1099.");
 
-            // Registra o ListManager no registro RMI
-            Registry registry = LocateRegistry.createRegistry(1099);  // Porta padrão 1099 para RMI
+            // Criar uma instância do ListManager e registrar no registry
+            ListInterface listManager = new ListManager();
             registry.rebind("ListManager", listManager);
-
-            System.out.println("Servidor RMI iniciado e ListManager registrado.");
-        } catch (RemoteException e) {
+            System.out.println("ListManager registrado no RMI Registry.");
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

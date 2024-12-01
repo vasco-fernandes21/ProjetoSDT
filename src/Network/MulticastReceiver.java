@@ -14,39 +14,43 @@ public class MulticastReceiver extends Thread {
 
     private final String uuid;
     private final Map<String, List<String>> documentVersions = new ConcurrentHashMap<>();
-    private final Map<String, String> documentTable = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> documentTable = new ConcurrentHashMap<>();
     private final List<String> pendingUpdates = new CopyOnWriteArrayList<>();
-    private volatile boolean isSynced;
-    private volatile boolean isRunning = true; // Flag de controle
+
+    private volatile boolean isRunning = true;
+    private MulticastSocket socket;
+    private InetAddress group;
 
     public MulticastReceiver(String uuid, List<String> initialSnapshot) {
         this.uuid = uuid;
-        this.isSynced = false;
-
-        if (initialSnapshot != null) {
-            documentVersions.put(uuid, new ArrayList<>(initialSnapshot));
-            System.out.println("Snapshot inicial recebido: " + initialSnapshot);
+        // Inicializar documentVersions com o snapshot recebido
+        for (String doc : initialSnapshot) {
+            if (!doc.equals("none")) {
+                documentVersions.put(uuid, new ArrayList<>(Arrays.asList(doc.trim())));
+                System.out.println("Documento inicial sincronizado: " + doc.trim());
+            }
         }
     }
 
     @Override
     public void run() {
-        try (MulticastSocket socket = new MulticastSocket(PORT)) {
-            InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
+        try {
+            socket = new MulticastSocket(PORT);
+            group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             socket.joinGroup(group);
 
             while (isRunning) { // Verifica a flag de controle
-                byte[] buffer = new byte[256];
+                byte[] buffer = new byte[1024];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
 
                 if (message.startsWith("HEARTBEAT:sync:")) {
                     handleSyncMessage(message, packet);
-                } else if (message.equals("HEARTBEAT:commit")) {
+                } else if (message.startsWith("HEARTBEAT:commit:")) {
                     handleCommitMessage();
                 } else if (message.startsWith("HEARTBEAT")) {
-                    sendAck(packet, message.split(":")[1]);
+                    sendAck(packet, message.split(":")[3]); // Ajustar se commit tiver requestId
                 }
             }
         } catch (IOException e) {
@@ -58,22 +62,25 @@ public class MulticastReceiver extends Thread {
 
     private void handleSyncMessage(String message, DatagramPacket packet) throws IOException {
         String[] parts = message.split(":");
-        if (parts.length >= 3) {
-            List<String> docs = parts[2].equals("none") ? new ArrayList<>() : Arrays.asList(parts[2].split(","));
+        if (parts.length >= 4) { // Garantir que há requestId
+            String doc = parts[2];
+            String requestId = parts[3];
 
-            if (!isSynced) {
+            List<String> docs = doc.equals("none") ? new ArrayList<>() : Arrays.asList(doc.split(","));
+
+            if (!pendingUpdates.isEmpty()) {
                 pendingUpdates.add(message);
                 System.out.println("Mensagem de sincronização pendente armazenada: " + message);
             } else {
-                for (String doc : docs) {
-                    if (!doc.equals("none")) {
-                        documentVersions.put(uuid, new ArrayList<>(Arrays.asList(doc.trim())));
-                        System.out.println("Heartbeat sincronizado com documento: " + doc.trim());
+                for (String d : docs) {
+                    if (!d.equals("none")) {
+                        documentVersions.put(uuid, new ArrayList<>(Arrays.asList(d.trim())));
+                        System.out.println("Heartbeat sincronizado com documento: " + d.trim());
                     }
                 }
             }
 
-            sendAck(packet, parts[3]);
+            sendAck(packet, requestId);
         } else {
             System.out.println("Mensagem de heartbeat inválida: " + message);
         }
@@ -81,37 +88,8 @@ public class MulticastReceiver extends Thread {
 
     private void handleCommitMessage() {
         System.out.println("Commit recebido. Confirmando e aplicando atualizações.");
-
-        if (!isSynced) {
-            applyPendingUpdates();
-            isSynced = true;
-        } else {
-            savePermanentVersion();
-        }
-    }
-
-    private void applyPendingUpdates() {
-        if (!pendingUpdates.isEmpty()) {
-            System.out.println("Aplicando atualizações pendentes...");
-            for (String update : pendingUpdates) {
-                String[] parts = update.split(":");
-                if (parts.length >= 3) {
-                    List<String> docs = Arrays.asList(parts[2].split(","));
-                    for (String doc : docs) {
-                        if (!doc.equals("none")) {
-                            documentVersions.put(uuid, new ArrayList<>(Arrays.asList(doc.trim())));
-                            System.out.println("Atualização aplicada: " + doc.trim());
-
-                            // Agora, salva o documento permanentemente após a atualização
-                            String docId = UUID.randomUUID().toString();
-                            documentTable.put(docId, doc.trim());
-                            System.out.println("Documento guardado permanentemente: " + doc.trim() + " com ID: " + docId);
-                        }
-                    }
-                }
-            }
-            pendingUpdates.clear();
-        }
+        savePermanentVersion();
+        applyPendingUpdates();
     }
 
     private void sendAck(DatagramPacket packet, String requestId) throws IOException {
@@ -126,28 +104,57 @@ public class MulticastReceiver extends Thread {
     }
 
     private void savePermanentVersion() {
-        List<String> docs = documentVersions.get(uuid);
-        if (docs != null) {
-            for (String doc : docs) {
-                if (!doc.equals("none")) {
-                    String docId = UUID.randomUUID().toString();
-                    documentTable.put(docId, doc);
-                    System.out.println("Documento guardado permanentemente: " + doc + " com ID: " + docId);
-                }
+        for (Map.Entry<String, List<String>> entry : documentVersions.entrySet()) {
+            String doc = String.join(",", entry.getValue());
+            if (!doc.equals("none")) {
+                String docId = UUID.randomUUID().toString();
+                documentTable.put(docId, doc);
+                System.out.println("Documento guardado permanentemente: " + doc + " com ID: " + docId);
             }
         }
         System.out.println("Versão permanente guardada: " + documentTable);
     }
 
+    private void applyPendingUpdates() {
+        if (!pendingUpdates.isEmpty()) {
+            System.out.println("Aplicando atualizações pendentes...");
+            for (String update : pendingUpdates) {
+                String[] parts = update.split(":");
+                if (parts.length >= 4) {
+                    String doc = parts[2];
+                    String requestId = parts[3];
+                    List<String> docs = doc.equals("none") ? new ArrayList<>() : Arrays.asList(doc.split(","));
+                    for (String d : docs) {
+                        if (!d.equals("none")) {
+                            documentVersions.put(uuid, new ArrayList<>(Arrays.asList(d.trim())));
+                            System.out.println("Atualização aplicada: " + d.trim());
+
+                            // Salva o documento permanentemente após a atualização
+                            String docId = UUID.randomUUID().toString();
+                            documentTable.put(docId, d.trim());
+                            System.out.println("Documento guardado permanentemente: " + d.trim() + " com ID: " + docId);
+                        }
+                    }
+                }
+            }
+            pendingUpdates.clear();
+        }
+    }
+
     public void stopRunning() {
         isRunning = false;
+        try {
+            if (socket != null && group != null) {
+                socket.leaveGroup(group);
+                socket.close();
+                System.out.println("Socket de Multicast removido do grupo " + MULTICAST_GROUP_ADDRESS);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public Map<String, String> getDocumentTable() {
         return documentTable;
-    }
-
-    public Map<String, List<String>> getDocumentVersions() {
-        return documentVersions;
     }
 }

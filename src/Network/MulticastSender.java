@@ -5,65 +5,75 @@ import RMISystem.ListInterface;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MulticastSender extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
     private static final int PORT = 4447;
     private static final int HEARTBEAT_INTERVAL = 5000; // Intervalo de 5 segundos
+    private static final int ACK_TIMEOUT = 2000; // Timeout para esperar ACKs em milissegundos
 
     private final ListInterface listManager;
     private final Set<String> activeNodes;
     private final AckProcessor ackProcessor;
+    private final InetAddress group;
+    private final ExecutorService executorService;
 
-    public MulticastSender(ListInterface listManager, Set<String> activeNodes, AckProcessor ackProcessor) {
+    public MulticastSender(ListInterface listManager, Set<String> activeNodes, AckProcessor ackProcessor) throws IOException {
         this.listManager = listManager;
         this.activeNodes = activeNodes;
         this.ackProcessor = ackProcessor;
+        this.group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
+        this.executorService = Executors.newSingleThreadExecutor();
         this.ackProcessor.start(); // Iniciar a thread AckProcessor no construtor
     }
 
     @Override
     public void run() {
         try (MulticastSocket socket = new MulticastSocket(PORT)) {
-            InetAddress group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
             socket.joinGroup(group);
-
             System.out.println("Socket de Multicast unido ao grupo " + MULTICAST_GROUP_ADDRESS);
 
             while (true) {
                 List<String> docs = listManager.allMsgs();
+                
                 if (!docs.isEmpty()) {
                     for (String doc : docs) {
-                        String requestId = UUID.randomUUID().toString();
-                        sendSyncMessage(socket, group, doc, requestId);
+                        String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
+                        sendSyncMessage(socket, doc, requestId);
 
-                        if (waitForAcks(requestId)) {
-                            sendCommitMessage(socket, group);
+                        // Processar ACKs de forma síncrona
+                        boolean majorityReceived = waitForAcks(requestId, ACK_TIMEOUT);
+                        if (majorityReceived) {
+                            sendCommitMessage(socket);
                             listManager.commit();
                             listManager.addClone();
+                            ackProcessor.clearAcks(requestId); // Limpar ACKs após processamento
                         } else {
-                            System.out.println("Não foi possível receber ACKs suficientes.");
+                            System.out.println("Não foi possível receber ACKs suficientes para o requestId: " + requestId);
                         }
 
-                        // Aguardar o próximo ciclo de heartbeat
+                        // Aguardar 5 segundos antes de enviar o próximo documento
                         Thread.sleep(HEARTBEAT_INTERVAL);
                     }
                 } else {
-                    // Aguardar o próximo ciclo de heartbeat
-                    Thread.sleep(HEARTBEAT_INTERVAL);
+                    // Não enviar heartbeat de sincronização quando a lista está vazia
+                    System.out.println("Nenhum documento para sincronizar. Heartbeat de sync não enviado.");
                 }
 
-                // Verificar elementos que não responderam dentro do período de tempo aceitável
-                checkForFailures();
+                // Aguardar 5 segundos antes de verificar novamente a lista de documentos
+                Thread.sleep(HEARTBEAT_INTERVAL);
             }
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
     }
 
-    private void sendSyncMessage(MulticastSocket socket, InetAddress group, String doc, String requestId) throws IOException {
+    private void sendSyncMessage(MulticastSocket socket, String doc, String requestId) throws IOException {
         String syncMessage = "HEARTBEAT:sync:" + doc + ":" + requestId;
         byte[] syncBuffer = syncMessage.getBytes(StandardCharsets.UTF_8);
         DatagramPacket packet = new DatagramPacket(syncBuffer, syncBuffer.length, group, PORT);
@@ -71,39 +81,38 @@ public class MulticastSender extends Thread {
         System.out.println("Sync Message enviado: " + syncMessage);
     }
 
-    private boolean waitForAcks(String requestId) {
+    /**
+     * Espera pelos ACKs para o requestId específico até o timeout.
+     * Retorna true se a maioria dos ACKs foi recebida, false caso contrário.
+     */
+    private boolean waitForAcks(String requestId, int timeoutMillis) {
+        long endTime = System.currentTimeMillis() + timeoutMillis;
         synchronized (ackProcessor) {
-            try {
-                ackProcessor.wait(2000); // Espera por ACKs ou timeout
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            while (!ackProcessor.allAcksReceived(requestId) && System.currentTimeMillis() < endTime) {
+                long timeLeft = endTime - System.currentTimeMillis();
+                if (timeLeft <= 0) {
+                    break;
+                }
+                try {
+                    ackProcessor.wait(timeLeft);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
-            return ackProcessor.getMissedCount(requestId) < (activeNodes.size() / 2) + 1; // Verifica se a maioria dos elementos enviou um ACK
+            return ackProcessor.allAcksReceived(requestId);
         }
     }
 
-    private void sendCommitMessage(MulticastSocket socket, InetAddress group) throws IOException {
-        String commitMessage = "HEARTBEAT:commit";
+    private void sendCommitMessage(MulticastSocket socket) throws IOException {
+        String commitMessage = "HEARTBEAT:commit:" + UUID.randomUUID().toString(); // Opcional: incluir requestId do commit
         byte[] commitBuffer = commitMessage.getBytes(StandardCharsets.UTF_8);
         DatagramPacket commitPacket = new DatagramPacket(commitBuffer, commitBuffer.length, group, PORT);
         socket.send(commitPacket);
         System.out.println("Commit enviado: " + commitMessage);
     }
 
-    private void checkForFailures() {
-        Set<String> toRemove = new HashSet<>();
-        synchronized (ackProcessor) {
-            for (String node : activeNodes) {
-                if (!ackProcessor.hasAck(node)) {
-                    toRemove.add(node);
-                    System.out.println("Nó marcado para remoção por falta de ACK: " + node + ". Missed ACKs: " + ackProcessor.getMissedCount(node));
-                }
-            }
-        }
-        activeNodes.removeAll(toRemove);
-
-        for (String removedNode : toRemove) {
-            System.out.println("Nó removido do grupo: " + removedNode);
-        }
+    public void removeNode(String nodeAddress) {
+        activeNodes.remove(nodeAddress);
+        System.out.println("Nó removido: " + nodeAddress);
     }
 }

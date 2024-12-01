@@ -13,6 +13,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     private final List<String> pendingUpdates; // Lista de atualizações pendentes
 
     public ListManager() throws RemoteException {
+        super();
         this.messageList = new ArrayList<>();
         this.documentTable = new Hashtable<>();
         this.pendingUpdates = new ArrayList<>();
@@ -20,15 +21,15 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
 
     // Adiciona novos documentos à lista de forma sincronizada
     @Override
-   public synchronized void addElement(String s) throws RemoteException {
-    String[] messages = s.split(",");
-    for (String message : messages) {
-        messageList.add(message.trim()); // Adiciona apenas na lista de mensagens
-        pendingUpdates.add(message.trim()); // Marca como atualização pendente
-        System.out.println("Documento adicionado no líder: " + message.trim());
+    public synchronized void addElement(String s) throws RemoteException {
+        String[] messages = s.split(",");
+        for (String message : messages) {
+            messageList.add(message.trim()); // Adiciona apenas na lista de mensagens
+            pendingUpdates.add(message.trim()); // Marca como atualização pendente
+            System.out.println("Documento adicionado no líder: " + message.trim());
+        }
+        System.out.println("Lista de documentos no líder: " + messageList);
     }
-    System.out.println("Lista de documentos no líder: " + messageList); // Imprimir para verificar a lista
-}
 
     // Remove um elemento da lista de forma sincronizada
     @Override

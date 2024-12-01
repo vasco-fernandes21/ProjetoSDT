@@ -2,27 +2,31 @@ package Main;
 
 import System.Elemento;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class TestMulticast {
     public static void main(String[] args) {
-        // Inicializa o líder e os não-líderes diretamente, sem criar threads extras
+        // Cria a lista de activeNodes
+        Set<String> activeNodes = ConcurrentHashMap.newKeySet();
 
+        // Inicializa o líder e os não-líderes
         System.out.println("A iniciar líder...");
-        Elemento lider = new Elemento(1); // O líder já inicia o MulticastSender
+        Elemento lider = new Elemento(1, activeNodes); // O líder já inicia o MulticastSender
 
-        // Inicializa os não-líderes
         System.out.println("A iniciar não-líder 1...");
-        Elemento naoLider1 = new Elemento(0); // Não-líder 1 já inicia o receiver
+        Elemento naoLider1 = new Elemento(0, activeNodes); // Não-líder 1 já inicia o receiver
 
         System.out.println("A iniciar não-líder 2...");
-        Elemento naoLider2 = new Elemento(0); // Não-líder 2 já inicia o receiver
+        Elemento naoLider2 = new Elemento(0, activeNodes); // Não-líder 2 já inicia o receiver
 
         System.out.println("A iniciar não-líder 3...");
-        Elemento naoLider3 = new Elemento(0); // Não-líder 3 já inicia o receiver
+        Elemento naoLider3 = new Elemento(0, activeNodes); // Não-líder 3 já inicia o receiver
 
         // Simular a falha de um elemento após 15 segundos
         new Thread(() -> {
             try {
-                Thread.sleep(15000); // Espera 15 segundos antes de simular a falha
+                Thread.sleep(15000);
                 System.out.println("A simular falha do não-líder 2...");
                 naoLider2.stopReceiver(); // Chama o método que interrompe a recepção de pacotes
             } catch (InterruptedException e) {
