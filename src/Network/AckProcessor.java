@@ -11,53 +11,28 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class AckProcessor extends Thread {
     private final int ackPort;
-    private final Map<String, Integer> nodeMissCounts;
-    private final Set<String> activeNodes;
     private final String leaderUuid;
 
-    // Estruturas para rastrear ACKs por requestId
+    // Estruturas para rastrear ACKs
     private final ConcurrentHashMap<String, Set<String>> heartbeatAcks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> nodeAckCounts = new ConcurrentHashMap<>();
 
-    public AckProcessor(Set<String> activeNodes, int ackTimeoutMillis, int maxMissedHeartbeats, int ackPort, String leaderUuid) {
-        this.activeNodes = activeNodes;
+    public AckProcessor(int ackPort, String leaderUuid) {
         this.ackPort = ackPort;
         this.leaderUuid = leaderUuid;
-        this.nodeMissCounts = new ConcurrentHashMap<>();
-        // Inicialização adicional se necessário
-    }
-
-    public synchronized void addNode(String nodeAddress) {
-        activeNodes.add(nodeAddress);
-    }
-
-    public synchronized void removeNode(String nodeAddress) {
-        activeNodes.remove(nodeAddress);
-        nodeMissCounts.remove(nodeAddress);
-    }
-
-    public boolean hasAck(String nodeAddress) {
-        return heartbeatAcks.values().stream().anyMatch(acks -> acks.contains(nodeAddress));
-    }
-
-    public int getMissedCount(String nodeAddress) {
-        return nodeMissCounts.getOrDefault(nodeAddress, 0);
     }
 
     public synchronized void processAck(String requestId, String nodeId) {
         if (!nodeId.equals(leaderUuid)) { // Ignorar ACKs do líder
             heartbeatAcks.computeIfAbsent(requestId, k -> ConcurrentHashMap.newKeySet()).add(nodeId);
+            nodeAckCounts.merge(nodeId, 1, Integer::sum);
             System.out.println("ACK recebido de: " + nodeId + " para requestId: " + requestId);
             notifyAll(); // Notificar threads aguardando por ACKs
         }
     }
 
-    public synchronized boolean allAcksReceived(String requestId) {
-        Set<String> acks = heartbeatAcks.get(requestId);
-        if (acks == null) {
-            return false;
-        }
-        int majority = (activeNodes.size() / 2) + 1;
-        return acks.size() >= majority;
+    public synchronized Set<String> getAcksForHeartbeat(String requestId) {
+        return heartbeatAcks.getOrDefault(requestId, ConcurrentHashMap.newKeySet());
     }
 
     @Override
@@ -84,30 +59,15 @@ public class AckProcessor extends Thread {
         }
     }
 
-    public void markFirstHeartbeatSent() {
-        // Implementação, se necessário
-    }
-
-    private synchronized void handleMissedAcks() {
-        for (String node : activeNodes) {
-            if (!heartbeatAcks.values().stream().anyMatch(acks -> acks.contains(node))) {
-                int misses = nodeMissCounts.getOrDefault(node, 0) + 1;
-                nodeMissCounts.put(node, misses);
-                System.out.println("Nó " + node + " falhou no heartbeat. Total de falhas: " + misses);
-
-                if (misses >= 3) { // maxMissedHeartbeats fixado em 3
-                    System.out.println("Nó " + node + " excedeu o limite de falhas e será removido.");
-                    removeNode(node);
-                }
-            }
-        }
-    }
-
-    public synchronized void checkForFailures() {
-        handleMissedAcks();
-    }
-
-    public void clearAcks(String requestId) {
+    public synchronized void clearAcks(String requestId) {
         heartbeatAcks.remove(requestId);
+    }
+
+    public synchronized Map<String, Integer> getNodeAckCounts() {
+        return nodeAckCounts;
+    }
+
+    public synchronized void resetNodeAckCounts() {
+        nodeAckCounts.clear();
     }
 }
