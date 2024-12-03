@@ -66,8 +66,12 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     // Confirma o commit e adiciona os documentos à tabela de documentos
     @Override
     public synchronized void commit() throws RemoteException {
+        // Clonar a lista de mensagens antes de apagá-la
+        ArrayList<String> clonedList = new ArrayList<>(messageList);
+        System.out.println("Lista clonada antes do commit: " + clonedList);
+
         // Adiciona documentos confirmados na documentTable
-        for (String doc : messageList) {
+        for (String doc : clonedList) { // Use clonedList instead of messageList
             if (!documentTable.containsValue(doc)) {  // Verifica se o documento já está na tabela
                 String docId = UUID.randomUUID().toString();
                 documentTable.put(docId, doc);

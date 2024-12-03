@@ -5,10 +5,7 @@ import RMISystem.ListInterface;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map; // Adicionar esta linha para importar a classe Map
-import java.util.Set; // Adicionar esta linha para importar a classe Set
-import java.util.UUID;
+import java.util.*;
 
 public class MulticastSender extends Thread {
     private static final String MULTICAST_GROUP_ADDRESS = "224.0.0.1";
@@ -50,7 +47,7 @@ public class MulticastSender extends Thread {
                             ackProcessor.clearAcks(requestId); // Limpar ACKs após processamento
                         } else {
                             System.out.println("Não foi possível receber ACKs suficientes para o requestId: " + requestId);
-                            removeUnresponsiveNodes();
+                            removeUnresponsiveNodes(socket);
                         }
 
                         // Aguardar 5 segundos antes de enviar o próximo documento
@@ -77,16 +74,12 @@ public class MulticastSender extends Thread {
         System.out.println("Sync Message enviado: " + syncMessage);
     }
 
-    /**
-     * Espera pelos ACKs para o requestId específico até o timeout.
-     * Retorna true se a maioria dos ACKs foi recebida, false caso contrário.
-     */
     private boolean waitForAcks(String requestId, int timeoutMillis) {
         long endTime = System.currentTimeMillis() + timeoutMillis;
         synchronized (ackProcessor) {
             while (System.currentTimeMillis() < endTime) {
                 Set<String> acks = ackProcessor.getAcksForHeartbeat(requestId);
-                if (acks.size() >= (acks.size() / 2) + 1) { // Ajustar a lógica conforme necessário
+                if (acks.size() >= 2) { // Verifica se pelo menos dois elementos enviaram um ACK
                     return true;
                 }
                 long timeLeft = endTime - System.currentTimeMillis();
@@ -114,7 +107,7 @@ public class MulticastSender extends Thread {
     /**
      * Remove nós que não responderam adequadamente.
      */
-    private void removeUnresponsiveNodes() {
+    private void removeUnresponsiveNodes(MulticastSocket socket) {
         Map<String, Integer> ackCounts = ackProcessor.getNodeAckCounts();
         // Definir um limiar de ACKs para considerar um nó como responsivo
         int requiredAcks = 3; // Ajustar conforme necessário
@@ -122,10 +115,14 @@ public class MulticastSender extends Thread {
         for (Map.Entry<String, Integer> entry : ackCounts.entrySet()) {
             if (entry.getValue() < requiredAcks) {
                 String nodeId = entry.getKey();
-                // Remover o nó do grupo de multicast
-                // Implementar a lógica de remoção conforme a necessidade
-                System.out.println("Removendo nó não responsivo: " + nodeId);
-                // Por exemplo, pode enviar uma mensagem de remoção ou atualizar uma lista interna
+                try {
+                    // Remover o nó do grupo de multicast
+                    InetAddress nodeAddress = InetAddress.getByName(nodeId);
+                    socket.leaveGroup(nodeAddress);
+                    System.out.println("Removendo nó não responsivo: " + nodeId);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
 

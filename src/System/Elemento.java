@@ -8,18 +8,14 @@ import RMISystem.ListInterface;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.ArrayList;
-import java.util.Set;
 import java.util.UUID;
 
 public class Elemento {
     private final String uuid;
     private MulticastReceiver receiver;
-    private final Set<String> activeNodes;
 
-    public Elemento(int lider, Set<String> activeNodes) {
+    public Elemento(int lider) {
         this.uuid = UUID.randomUUID().toString();
-        this.activeNodes = activeNodes;
-        this.activeNodes.add(this.uuid);
         System.out.println("UUID do elemento: " + this.uuid);
 
         if (lider == 1) {
@@ -60,8 +56,7 @@ public class Elemento {
     public void stopReceiver() {
         if (receiver != null) {
             receiver.stopRunning();
-            activeNodes.remove(this.uuid);
-            System.out.println("Elemento " + this.uuid + " parou de receber e foi removido da lista de ativos.");
+            System.out.println("Elemento " + this.uuid + " parou de receber pacotes.");
         }
     }
 

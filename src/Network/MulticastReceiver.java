@@ -87,7 +87,7 @@ public class MulticastReceiver extends Thread {
     }
 
     private void handleCommitMessage() {
-        System.out.println("Commit recebido. Confirmando e aplicando atualizações.");
+        System.out.println("Commit recebido. A confirmar e aplicar atualizações.");
         savePermanentVersion();
         applyPendingUpdates();
     }
@@ -112,7 +112,7 @@ public class MulticastReceiver extends Thread {
                 System.out.println("Documento guardado permanentemente: " + doc + " com ID: " + docId);
             }
         }
-        System.out.println("Versão permanente guardada: " + documentTable);
+        // System.out.println("Versão permanente guardada: " + documentTable);
     }
 
     private void applyPendingUpdates() {
