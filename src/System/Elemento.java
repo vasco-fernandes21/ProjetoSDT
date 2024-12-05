@@ -5,6 +5,9 @@ import Network.MulticastReceiver;
 import Network.MulticastSender;
 import RMISystem.ListInterface;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.ArrayList;
@@ -24,7 +27,14 @@ public class Elemento {
                 Registry registry = LocateRegistry.getRegistry("localhost");
                 ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
-                AckProcessor ackProcessor = new AckProcessor(4448, this.uuid);
+                // Inicializar o receiver para obter o group e o socket
+                receiver = new MulticastReceiver(this.uuid, new ArrayList<>());
+                receiver.start();
+
+                InetAddress group = receiver.getGroup();
+                MulticastSocket multicastSocket = receiver.getSocket();
+
+                AckProcessor ackProcessor = new AckProcessor(4448, this.uuid, multicastSocket, group);
                 MulticastSender sender = new MulticastSender(listManager, ackProcessor);
                 sender.start();  // Inicia a thread do sender
                 System.out.println("Líder iniciado com sucesso.");

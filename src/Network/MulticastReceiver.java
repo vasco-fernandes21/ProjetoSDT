@@ -154,6 +154,25 @@ public class MulticastReceiver extends Thread {
         }
     }
 
+    public void leaveGroup() {
+        try {
+            if (socket != null && group != null) {
+                socket.leaveGroup(group);
+                System.out.println("Nó removido do grupo de multicast: " + uuid);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public InetAddress getGroup() {
+        return group;
+    }
+
+    public MulticastSocket getSocket() {
+        return socket;
+    }
+
     public Map<String, String> getDocumentTable() {
         return documentTable;
     }

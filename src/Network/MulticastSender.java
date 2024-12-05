@@ -20,8 +20,8 @@ public class MulticastSender extends Thread {
 
     public MulticastSender(ListInterface listManager, AckProcessor ackProcessor) throws IOException {
         this.listManager = listManager;
-        this.ackProcessor = ackProcessor;
         this.group = InetAddress.getByName(MULTICAST_GROUP_ADDRESS);
+        this.ackProcessor = ackProcessor;
         this.ackProcessor.start(); // Iniciar a thread AckProcessor no construtor
     }
 
@@ -41,13 +41,12 @@ public class MulticastSender extends Thread {
 
                         // Processar ACKs de forma síncrona
                         boolean majorityReceived = waitForAcks(requestId, ACK_TIMEOUT);
+                        processFinalAcks(requestId); // Processar ACKs finais e verificar contagens
                         if (majorityReceived) {
                             sendCommitMessage(socket);
                             listManager.commit();
                             listManager.addClone();
                             ackProcessor.logAcks(requestId); // Log dos ACKs recebidos após o commit
-                            processFinalAcks(requestId);
-
                         } else {
                             System.out.println("Não foi possível receber ACKs suficientes para o requestId: " + requestId);
                         }
@@ -105,7 +104,7 @@ public class MulticastSender extends Thread {
     private void processFinalAcks(String requestId) {
         Set<String> acks = ackProcessor.getAcksForHeartbeat(requestId); // Obter os ACKs finais após o timeout
         System.out.println("Número de ACKs recebidos para requestId " + requestId + ": " + acks.size());
-        ackProcessor.checkAckCounts(requestId); // Chama o método checkAckCounts
+        ackProcessor.checkAckCounts(requestId, nodeAddressMap); // Chama o método checkAckCounts
     }
 
     private void sendCommitMessage(MulticastSocket socket) throws IOException {
