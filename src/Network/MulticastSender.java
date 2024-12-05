@@ -16,6 +16,7 @@ public class MulticastSender extends Thread {
     private final ListInterface listManager;
     private final AckProcessor ackProcessor;
     private final InetAddress group;
+    private final Map<String, InetAddress> nodeAddressMap = new HashMap<>(); // Map to store node IDs and their addresses
 
     public MulticastSender(ListInterface listManager, AckProcessor ackProcessor) throws IOException {
         this.listManager = listManager;
@@ -44,10 +45,11 @@ public class MulticastSender extends Thread {
                             sendCommitMessage(socket);
                             listManager.commit();
                             listManager.addClone();
-                            ackProcessor.clearAcks(requestId); // Limpar ACKs após processamento
+                            ackProcessor.logAcks(requestId); // Log dos ACKs recebidos após o commit
+                            processFinalAcks(requestId);
+
                         } else {
                             System.out.println("Não foi possível receber ACKs suficientes para o requestId: " + requestId);
-                            removeUnresponsiveNodes(socket);
                         }
 
                         // Aguardar 5 segundos antes de enviar o próximo documento
@@ -76,11 +78,15 @@ public class MulticastSender extends Thread {
 
     private boolean waitForAcks(String requestId, int timeoutMillis) {
         long endTime = System.currentTimeMillis() + timeoutMillis;
+        Set<String> acks;
+        boolean majorityReceived = false;
         synchronized (ackProcessor) {
             while (System.currentTimeMillis() < endTime) {
-                Set<String> acks = ackProcessor.getAcksForHeartbeat(requestId);
+                acks = ackProcessor.getAcksForHeartbeat(requestId);
                 if (acks.size() >= 2) { // Verifica se pelo menos dois elementos enviaram um ACK
-                    return true;
+                    System.out.println("Majority of ACKs received for requestId: " + requestId);
+                    majorityReceived = true;
+                    break;
                 }
                 long timeLeft = endTime - System.currentTimeMillis();
                 if (timeLeft <= 0) {
@@ -92,8 +98,14 @@ public class MulticastSender extends Thread {
                     e.printStackTrace();
                 }
             }
-            return false;
+            return majorityReceived;
         }
+    }
+
+    private void processFinalAcks(String requestId) {
+        Set<String> acks = ackProcessor.getAcksForHeartbeat(requestId); // Obter os ACKs finais após o timeout
+        System.out.println("Número de ACKs recebidos para requestId " + requestId + ": " + acks.size());
+        ackProcessor.checkAckCounts(requestId); // Chama o método checkAckCounts
     }
 
     private void sendCommitMessage(MulticastSocket socket) throws IOException {
@@ -102,30 +114,5 @@ public class MulticastSender extends Thread {
         DatagramPacket commitPacket = new DatagramPacket(commitBuffer, commitBuffer.length, group, PORT);
         socket.send(commitPacket);
         System.out.println("Commit enviado: " + commitMessage);
-    }
-
-    /**
-     * Remove nós que não responderam adequadamente.
-     */
-    private void removeUnresponsiveNodes(MulticastSocket socket) {
-        Map<String, Integer> ackCounts = ackProcessor.getNodeAckCounts();
-        // Definir um limiar de ACKs para considerar um nó como responsivo
-        int requiredAcks = 3; // Ajustar conforme necessário
-
-        for (Map.Entry<String, Integer> entry : ackCounts.entrySet()) {
-            if (entry.getValue() < requiredAcks) {
-                String nodeId = entry.getKey();
-                try {
-                    // Remover o nó do grupo de multicast
-                    InetAddress nodeAddress = InetAddress.getByName(nodeId);
-                    socket.leaveGroup(nodeAddress);
-                    System.out.println("Removendo nó não responsivo: " + nodeId);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        ackProcessor.resetNodeAckCounts(); // Resetar contagens após a verificação
     }
 }
