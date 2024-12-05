@@ -1,5 +1,7 @@
 package Network;
 
+import System.Elemento;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -21,10 +23,10 @@ public class AckProcessor extends Thread {
     // Estruturas para rastrear ACKs
     private final ConcurrentHashMap<String, Set<String>> heartbeatAcks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Integer> ackCounts = new ConcurrentHashMap<>();
-    private Set<String> maxAckSenders = new HashSet<>(); // Conjunto para rastrear os IDs dos nós que enviaram o maior número de ACKs
-    private int maxAcks = 0; // Maximum number of ACKs received
-    private int missedCounter = 0; // Counter for missed ACKs
-    private static final int MISSED_THRESHOLD = 3; // Threshold for missed ACKs
+    private Set<String> maxAckSenders = new HashSet<>(); 
+    private int maxAcks = 0; 
+    private int missedCounter = 0; 
+    private static final int MISSED_THRESHOLD = 3; 
 
     public AckProcessor(int ackPort, String leaderUuid, MulticastSocket multicastSocket, InetAddress group) {
         this.ackPort = ackPort;
@@ -38,7 +40,7 @@ public class AckProcessor extends Thread {
             heartbeatAcks.computeIfAbsent(requestId, k -> ConcurrentHashMap.newKeySet()).add(nodeId);
             ackCounts.merge(requestId, 1, Integer::sum);
             System.out.println("ACK recebido de: " + nodeId + " para requestId: " + requestId);
-            notifyAll(); // Notificar threads aguardando por ACKs
+            notifyAll(); // Notificar threads à espera de ACKs
         }
     }
 
@@ -64,7 +66,7 @@ public class AckProcessor extends Thread {
         if (currentAcks > maxAcks) {
             maxAcks = currentAcks;
             maxAckSenders = new HashSet<>(currentAckSenders); // Atualizar o conjunto de IDs dos nós que enviaram o maior número de ACKs
-            missedCounter = 0; // Reset missed counter when new max is reached
+            missedCounter = 0; 
             System.out.println("novo máximo");
         } else if (currentAcks < maxAcks) {
             missedCounter++;
@@ -78,7 +80,7 @@ public class AckProcessor extends Thread {
                 return false;
             }
         } else {
-            missedCounter = 0; // Reset missed counter if currentAcks equals maxAcks
+            missedCounter = 0; 
         }
         return true;
     }
@@ -86,21 +88,12 @@ public class AckProcessor extends Thread {
     private void removeUnresponsiveNodes(Set<String> currentAckSenders, Map<String, InetAddress> nodeAddressMap) {
         Set<String> unresponsiveNodes = new HashSet<>(maxAckSenders);
         unresponsiveNodes.removeAll(currentAckSenders); // Identificar nós que não enviaram ACKs
-        System.out.println("Removendo nós não responsivos: " + unresponsiveNodes);
+        System.out.println("A remover nós não responsivos: " + unresponsiveNodes);
         // Remover nós não responsivos do grupo de multicast
         for (String nodeId : unresponsiveNodes) {
-            InetAddress nodeAddress = nodeAddressMap.get(nodeId);
-            if (nodeAddress != null) {
-                try {
-                    multicastSocket.leaveGroup(nodeAddress);
-                    System.out.println("Nó removido do grupo de multicast: " + nodeId);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+            Elemento.stopReceiverById(nodeId);
         }
 
-        // Reset maxAcks and maxAckSenders after removing unresponsive nodes
         maxAcks = 0;
         maxAckSenders.clear();
     }

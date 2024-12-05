@@ -13,6 +13,7 @@ public class MulticastReceiver extends Thread {
     private static final int ACK_PORT = 4448;
 
     private final String uuid;
+    private final String leaderUuid;
     private final Map<String, List<String>> documentVersions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> documentTable = new ConcurrentHashMap<>();
     private final List<String> pendingUpdates = new CopyOnWriteArrayList<>();
@@ -21,8 +22,9 @@ public class MulticastReceiver extends Thread {
     private MulticastSocket socket;
     private InetAddress group;
 
-    public MulticastReceiver(String uuid, List<String> initialSnapshot) {
+    public MulticastReceiver(String uuid, List<String> initialSnapshot, String leaderUuid) {
         this.uuid = uuid;
+        this.leaderUuid = leaderUuid;
         // Inicializar documentVersions com o snapshot recebido
         for (String doc : initialSnapshot) {
             if (!doc.equals("none")) {
@@ -50,7 +52,10 @@ public class MulticastReceiver extends Thread {
                 } else if (message.startsWith("HEARTBEAT:commit:")) {
                     handleCommitMessage();
                 } else if (message.startsWith("HEARTBEAT")) {
-                    sendAck(packet, message.split(":")[3]); // Ajustar se commit tiver requestId
+                    String[] parts = message.split(":");
+                    if (parts.length >= 4 && !parts[1].equals(leaderUuid)) {
+                        sendAck(packet, parts[3]); // Ajustar se commit tiver requestId
+                    }
                 }
             }
         } catch (IOException e) {
@@ -143,20 +148,16 @@ public class MulticastReceiver extends Thread {
 
     public void stopRunning() {
         isRunning = false;
-        try {
-            if (socket != null && group != null) {
-                socket.leaveGroup(group);
-                socket.close();
-                System.out.println("Socket de Multicast removido do grupo " + MULTICAST_GROUP_ADDRESS);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+        leaveGroup(); // Ensure the group is left before closing the socket
+        if (socket != null) {
+            socket.close();
+            System.out.println("Socket de Multicast fechado.");
         }
     }
 
     public void leaveGroup() {
         try {
-            if (socket != null && group != null) {
+            if (socket != null && group != null && !socket.isClosed()) {
                 socket.leaveGroup(group);
                 System.out.println("Nó removido do grupo de multicast: " + uuid);
             }

@@ -11,9 +11,12 @@ import java.net.MulticastSocket;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public class Elemento {
+    private static final Map<String, MulticastReceiver> receiverMap = new HashMap<>();
     private final String uuid;
     private MulticastReceiver receiver;
 
@@ -27,12 +30,9 @@ public class Elemento {
                 Registry registry = LocateRegistry.getRegistry("localhost");
                 ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
-                // Inicializar o receiver para obter o group e o socket
-                receiver = new MulticastReceiver(this.uuid, new ArrayList<>());
-                receiver.start();
-
-                InetAddress group = receiver.getGroup();
-                MulticastSocket multicastSocket = receiver.getSocket();
+                InetAddress group = InetAddress.getByName("224.0.0.1");
+                MulticastSocket multicastSocket = new MulticastSocket(4447);
+                multicastSocket.joinGroup(group);
 
                 AckProcessor ackProcessor = new AckProcessor(4448, this.uuid, multicastSocket, group);
                 MulticastSender sender = new MulticastSender(listManager, ackProcessor);
@@ -53,8 +53,11 @@ public class Elemento {
                 System.out.println("Snapshot recebido do líder: " + snapshot);
 
                 // Inicializar receiver com o snapshot
-                receiver = new MulticastReceiver(this.uuid, snapshot);
+                receiver = new MulticastReceiver(this.uuid, snapshot, null);
                 receiver.start();  // Inicia a thread do receiver
+
+                // Adicionar o receiver ao mapa
+                receiverMap.put(this.uuid, receiver);
 
                 System.out.println("Não-líder sincronizado com sucesso.");
             } catch (Exception e) {
@@ -67,6 +70,18 @@ public class Elemento {
         if (receiver != null) {
             receiver.stopRunning();
             System.out.println("Elemento " + this.uuid + " parou de receber pacotes.");
+        }
+    }
+
+    public static void stopReceiverById(String uuid) {
+        MulticastReceiver receiver = receiverMap.get(uuid);
+        if (receiver != null) {
+            receiver.leaveGroup(); // Ensure the group is left before stopping the receiver
+            receiver.stopRunning();
+            receiverMap.remove(uuid);
+            System.out.println("Elemento " + uuid + " removido do grupo de multicast.");
+        } else {
+            System.out.println("Elemento " + uuid + " não encontrado.");
         }
     }
 
