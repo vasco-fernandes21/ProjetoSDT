@@ -5,15 +5,27 @@ import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Set;
 
 public interface ListInterface extends Remote {
-    void addElement(String s) throws RemoteException;    // Adiciona um novo documento
-    void removeElement(String s) throws RemoteException; // Remove um documento
-    ArrayList<String> allMsgs() throws RemoteException;   // Retorna todos os documentos
-    void addClone() throws RemoteException;              // Adiciona uma cópia/clonagem da lista de documentos
-    ArrayList<String> getSnapshot() throws RemoteException; // Retorna uma cópia da lista atual para sincronização
-    void commit() throws RemoteException;                // Confirma o commit e adiciona os documentos à tabela de documentos
-    Hashtable<String, String> getDocumentTable() throws RemoteException; // Retorna a tabela de documentos confirmados
-    List<String> getPendingUpdates() throws RemoteException; // Retorna as atualizações pendentes
-    void clearPendingUpdates() throws RemoteException; // Limpa as atualizações pendentes
+    void addElement(String s) throws RemoteException;
+    void removeElement(String s) throws RemoteException;
+    ArrayList<String> allMsgs() throws RemoteException;
+    ArrayList<String> getSnapshot() throws RemoteException;
+    void commit() throws RemoteException;
+    void addClone() throws RemoteException;
+    Hashtable<String, String> getDocumentTable() throws RemoteException;
+    List<String> getPendingUpdates() throws RemoteException;
+    void clearPendingUpdates() throws RemoteException;
+
+    // Métodos para comunicação distribuída
+    void sendSyncMessage(String doc, String requestId) throws RemoteException;
+    void sendCommitMessage() throws RemoteException;
+    void sendAck(String uuid, String requestId) throws RemoteException;
+    Set<String> getAcksForHeartbeat(String requestId) throws RemoteException;
+
+    // Novos métodos para recepção de mensagens
+    void receiveSyncMessage(String syncMessage) throws RemoteException;
+    void receiveCommitMessage(String commitMessage) throws RemoteException;
+    void receiveAck(String uuid, String requestId) throws RemoteException;
 }
