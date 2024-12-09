@@ -11,11 +11,13 @@ public class NodeRegistry {
     public static synchronized void registerNode(String nodeId, ListInterface node) {
         nodes.put(nodeId, node);
         System.out.println("Nó registrado: " + nodeId);
+        printRegisteredNodes();
     }
 
     public static synchronized void unregisterNode(String nodeId) {
         nodes.remove(nodeId);
         System.out.println("Nó removido: " + nodeId);
+        printRegisteredNodes();
     }
 
     public static synchronized ListInterface getNode(String nodeId) {
@@ -23,6 +25,15 @@ public class NodeRegistry {
     }
 
     public static synchronized Map<String, ListInterface> getNodes() {
-        return new ConcurrentHashMap<>(nodes); // Retorna uma cópia para evitar problemas de concorrência
+        Map<String, ListInterface> nodesCopy = new ConcurrentHashMap<>(nodes);
+        System.out.println("getNodes() chamado. Nós registrados atualmente: " + nodesCopy.keySet());
+        return nodesCopy; // Retorna uma cópia para evitar problemas de concorrência
+    }
+
+    private static void printRegisteredNodes() {
+        System.out.println("Nós registrados atualmente: ");
+        for (Map.Entry<String, ListInterface> entry : nodes.entrySet()) {
+            System.out.println("Nó: " + entry.getKey());
+        }
     }
 }

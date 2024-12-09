@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.Map;
 
 public class ListManager extends UnicastRemoteObject implements ListInterface {
     private final String uuid = UUID.randomUUID().toString();
@@ -114,8 +115,12 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         String syncMessage = "HEARTBEAT:sync:" + doc + ":" + requestId;
         System.out.println("Sync Message enviado: " + syncMessage);
 
-        // Envia para todos os nós registrados
-        for (String nodeId : NodeRegistry.getNodes().keySet()) {
+        // imprime o id dos nós registados
+        Map<String, ListInterface> nodesBefore = NodeRegistry.getNodes();
+        System.out.println("Nós registados antes do envio: " + nodesBefore);
+
+        // Envia para todos os nós registados
+        for (String nodeId : nodesBefore.keySet()) {
             ListInterface node = NodeRegistry.getNode(nodeId);
             System.out.println("Node ID: " + nodeId);
             if (node != null) {
@@ -126,6 +131,9 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
                 }
             }
         }
+
+        Map<String, ListInterface> nodesAfter = NodeRegistry.getNodes();
+        System.out.println("Nós registados após o envio: " + nodesAfter);
     }
 
     @Override
@@ -133,7 +141,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         String commitMessage = "HEARTBEAT:commit:" + UUID.randomUUID().toString();
         System.out.println("Commit Message enviado: " + commitMessage);
 
-        // Envia para todos os nós registrados
+        // Envia para todos os nós registados
         for (String nodeId : NodeRegistry.getNodes().keySet()) {
             ListInterface node = NodeRegistry.getNode(nodeId);
             if (node != null) {

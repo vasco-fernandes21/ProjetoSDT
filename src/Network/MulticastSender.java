@@ -1,11 +1,13 @@
 package Network;
 
 import RMISystem.ListInterface;
+import RMISystem.NodeRegistry;
 
 import java.rmi.RemoteException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Map;
 
 public class MulticastSender extends Thread {
     private static final int HEARTBEAT_INTERVAL = 5000; // Intervalo de 5 segundos
