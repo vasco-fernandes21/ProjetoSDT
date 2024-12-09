@@ -1,7 +1,11 @@
 package RMISystem;
 
+import Network.MulticastSender;
+
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
@@ -17,12 +21,21 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     private final Hashtable<String, String> documentTable; // Tabela de documentos
     private final List<String> pendingUpdates; // Lista de atualizações pendentes
     private final ConcurrentHashMap<String, Set<String>> heartbeatAcks = new ConcurrentHashMap<>(); // ACKs para heartbeats
+    private final NodeRegistryInterface nodeRegistry;
 
     public ListManager() throws RemoteException {
         super();
         this.messageList = new ArrayList<>();
         this.documentTable = new Hashtable<>();
         this.pendingUpdates = new ArrayList<>();
+
+        // Conectar ao NodeRegistry remoto
+        try {
+            Registry registry = LocateRegistry.getRegistry("localhost"); // Substitua "localhost" pelo IP adequado se necessário
+            nodeRegistry = (NodeRegistryInterface) registry.lookup("NodeRegistry");
+        } catch (Exception e) {
+            throw new RemoteException("Erro ao conectar ao NodeRegistry", e);
+        }
     }
 
     // Adiciona novos documentos à lista de forma sincronizada
@@ -107,33 +120,36 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     public synchronized void clearPendingUpdates() throws RemoteException {
         pendingUpdates.clear();
         System.out.println("Atualizações pendentes limpas via RMI.");
-    }
-
-    // Envia uma mensagem de sincronização
-    @Override
-    public synchronized void sendSyncMessage(String doc, String requestId) throws RemoteException {
-        String syncMessage = "HEARTBEAT:sync:" + doc + ":" + requestId;
-        System.out.println("Sync Message enviado: " + syncMessage);
-
-        // imprime o id dos nós registados
-        Map<String, ListInterface> nodesBefore = NodeRegistry.getNodes();
-        System.out.println("Nós registados antes do envio: " + nodesBefore);
-
-        // Envia para todos os nós registados
-        for (String nodeId : nodesBefore.keySet()) {
-            ListInterface node = NodeRegistry.getNode(nodeId);
-            System.out.println("Node ID: " + nodeId);
-            if (node != null) {
-                try {
-                    node.receiveSyncMessage(syncMessage); // Chama o método do nó remoto para receber a sync message
-                } catch (RemoteException e) {
-                    System.out.println("Erro ao enviar SyncMessage para o nó " + nodeId + ": " + e.getMessage());
-                }
-            }
         }
 
-        Map<String, ListInterface> nodesAfter = NodeRegistry.getNodes();
-        System.out.println("Nós registados após o envio: " + nodesAfter);
+        @Override
+        public synchronized void sendSyncMessage(String doc, String requestId, String id) throws RemoteException {
+        String syncMessage = "HEARTBEAT:sync:" + doc + ":" + requestId;
+        System.out.println("Sync Message enviado: " + syncMessage);
+    
+        // Imprime o id dos nós registados
+        Map<String, ListInterface> nodesBefore = nodeRegistry.getNodes();
+        System.out.println("Nós registados antes do envio: " + nodesBefore.keySet());
+    
+        for (String nodeId : nodesBefore.keySet()) {
+            if (!nodeId.equals(id)) { // Verifica se o nodeId não é o próprio líder
+                ListInterface node = nodeRegistry.getNode(nodeId);
+                if (node != null) {
+                    try {
+                        receiveSyncMessage(syncMessage); 
+                    } catch (RemoteException e) {
+                        System.out.println("Erro ao enviar SyncMessage para o nó " + nodeId + ": " + e.getMessage());
+                    }
+                } else {
+                    System.out.println("Nó não encontrado: " + nodeId);
+                }
+            } else {
+                System.out.println("Ignorando envio para o próprio nó líder: " + nodeId);
+            }
+        }
+    
+        Map<String, ListInterface> nodesAfter = nodeRegistry.getNodes();
+        System.out.println("Nós registados após o envio: " + nodesAfter.keySet());
     }
 
     @Override
@@ -142,8 +158,8 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         System.out.println("Commit Message enviado: " + commitMessage);
 
         // Envia para todos os nós registados
-        for (String nodeId : NodeRegistry.getNodes().keySet()) {
-            ListInterface node = NodeRegistry.getNode(nodeId);
+        for (String nodeId : nodeRegistry.getNodes().keySet()) {
+            ListInterface node = nodeRegistry.getNode(nodeId);
             if (node != null) {
                 try {
                     node.receiveCommitMessage(commitMessage); // Chama o método do nó remoto para receber a commit message

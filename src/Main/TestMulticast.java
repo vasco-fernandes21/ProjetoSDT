@@ -18,14 +18,14 @@ public class TestMulticast {
         Elemento naoLider3 = new Elemento(0); // Não-líder 3 já inicia o receiver
 
         // Simular a falha de um elemento após 15 segundos
-        new Thread(() -> {
-            try {
-                Thread.sleep(15000);
-                System.out.println("A simular falha do não-líder 2...");
-                naoLider2.stopReceiver(); // Chama o método que interrompe a recepção de pacotes
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+        // new Thread(() -> {
+        //     try {
+        //         Thread.sleep(15000);
+        //         System.out.println("A simular falha do não-líder 2...");
+        //         naoLider2.stopReceiver(); // Chama o método que interrompe a recepção de pacotes
+        //     } catch (InterruptedException e) {
+        //         e.printStackTrace();
+        //     }
+        // }).start();
     }
 }

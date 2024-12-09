@@ -12,11 +12,12 @@ import java.util.Map;
 public class MulticastSender extends Thread {
     private static final int HEARTBEAT_INTERVAL = 5000; // Intervalo de 5 segundos
     private static final int ACK_TIMEOUT = 2000; // Timeout para esperar ACKs em milissegundos
-
+    private final String uuid;
     private final ListInterface listManager;
 
-    public MulticastSender(ListInterface listManager) {
+    public MulticastSender(ListInterface listManager, String uuid) {
         this.listManager = listManager;
+        this.uuid = uuid;
     }
 
     @Override
@@ -28,11 +29,13 @@ public class MulticastSender extends Thread {
                 if (!docs.isEmpty()) {
                     for (String doc : docs) {
                         String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
-                        listManager.sendSyncMessage(doc, requestId);
+                        //print do uuid do lider
+                        System.out.println("UUID do líder: " + uuid);
+                        listManager.sendSyncMessage(doc, requestId, uuid);
 
                         // Processar ACKs de forma síncrona
                         boolean majorityReceived = waitForAcks(requestId, ACK_TIMEOUT);
-                        processFinalAcks(requestId); // Processar ACKs finais e verificar contagens
+                        processFinalAcks(requestId); 
                         if (majorityReceived) {
                             listManager.sendCommitMessage();
                             listManager.commit();
@@ -92,5 +95,9 @@ public class MulticastSender extends Thread {
         } catch (RemoteException e) {
             e.printStackTrace();
         }
+    }
+
+    public String getLiderId() {
+        return uuid;
     }
 }

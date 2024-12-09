@@ -19,7 +19,7 @@ public interface ListInterface extends Remote {
     void clearPendingUpdates() throws RemoteException;
 
     // Métodos para comunicação distribuída
-    void sendSyncMessage(String doc, String requestId) throws RemoteException;
+    void sendSyncMessage(String doc, String requestId, String id) throws RemoteException;
     void sendCommitMessage() throws RemoteException;
     void sendAck(String uuid, String requestId) throws RemoteException;
     Set<String> getAcksForHeartbeat(String requestId) throws RemoteException;

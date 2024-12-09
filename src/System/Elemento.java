@@ -3,7 +3,7 @@ package System;
 import Network.MulticastReceiver;
 import Network.MulticastSender;
 import RMISystem.ListInterface;
-import RMISystem.NodeRegistry;
+import RMISystem.NodeRegistryInterface;
 
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -16,10 +16,19 @@ public class Elemento {
     private static final Map<String, MulticastReceiver> receiverMap = new HashMap<>();
     private final String uuid;
     private MulticastReceiver receiver;
+    private final NodeRegistryInterface nodeRegistry;
 
     public Elemento(int lider) {
         this.uuid = UUID.randomUUID().toString();
         System.out.println("UUID do elemento: " + this.uuid);
+
+        // Conectar ao NodeRegistry remoto
+        try {
+            Registry registry = LocateRegistry.getRegistry("localhost"); // Substitua "localhost" pelo IP adequado se necessário
+            nodeRegistry = (NodeRegistryInterface) registry.lookup("NodeRegistry");
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao conectar ao NodeRegistry", e);
+        }
 
         if (lider == 1) {
             System.out.println("Processo iniciado como líder.");
@@ -27,11 +36,11 @@ public class Elemento {
                 Registry registry = LocateRegistry.getRegistry("localhost");
                 ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
-                MulticastSender sender = new MulticastSender(listManager);
+                MulticastSender sender = new MulticastSender(listManager, this.uuid);
                 sender.start();  // Inicia a thread do sender
 
                 // Registrar o nó no NodeRegistry
-                NodeRegistry.registerNode(this.uuid, listManager);
+                nodeRegistry.registerNode(this.uuid, listManager);
 
                 System.out.println("Líder iniciado com sucesso.");
             } catch (Exception e) {
@@ -56,7 +65,7 @@ public class Elemento {
                 receiverMap.put(this.uuid, receiver);
 
                 // Registrar o nó no NodeRegistry
-                NodeRegistry.registerNode(this.uuid, listManager);
+                nodeRegistry.registerNode(this.uuid, listManager);
 
                 System.out.println("Não-líder sincronizado com sucesso.");
             } catch (Exception e) {
@@ -71,7 +80,11 @@ public class Elemento {
             System.out.println("Elemento " + this.uuid + " parou de receber pacotes.");
 
             // Remover o nó do NodeRegistry
-            NodeRegistry.unregisterNode(this.uuid);
+            try {
+                nodeRegistry.unregisterNode(this.uuid);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -83,7 +96,13 @@ public class Elemento {
             System.out.println("Elemento " + uuid + " removido do grupo de multicast.");
 
             // Remover o nó do NodeRegistry
-            NodeRegistry.unregisterNode(uuid);
+            try {
+                Registry registry = LocateRegistry.getRegistry("localhost"); // Substitua "localhost" pelo IP adequado se necessário
+                NodeRegistryInterface nodeRegistry = (NodeRegistryInterface) registry.lookup("NodeRegistry");
+                nodeRegistry.unregisterNode(uuid);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         } else {
             System.out.println("Elemento " + uuid + " não encontrado.");
         }
