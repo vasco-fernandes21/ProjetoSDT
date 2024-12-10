@@ -23,7 +23,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     private final ArrayList<String> messageList;  // Lista de documentos
     private final Hashtable<String, String> documentTable; // Tabela de documentos
     private final List<String> pendingUpdates; // Lista de atualizações pendentes
-    private final ConcurrentHashMap<String, Set<String>> heartbeatAcks = new ConcurrentHashMap<>(); // ACKs para heartbeats
+    private static final ConcurrentHashMap<String, Set<String>> heartbeatAcks = new ConcurrentHashMap<>(); // ACKs para heartbeats
     private final NodeRegistryInterface nodeRegistry;
 
     public ListManager() throws RemoteException {
@@ -83,27 +83,6 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     public synchronized ArrayList<String> getSnapshot() throws RemoteException {
         System.out.println("Snapshot solicitado por um novo elemento via RMI.");
         return new ArrayList<>(messageList);
-    }
-
-    // Confirma o commit e adiciona os documentos à tabela de documentos
-    @Override
-    public synchronized void commit() throws RemoteException {
-        // Clonar a lista de mensagens antes de apagá-la
-        ArrayList<String> clonedList = new ArrayList<>(messageList);
-        System.out.println("Lista clonada antes do commit via RMI: " + clonedList);
-
-        // Adiciona documentos confirmados na documentTable
-        for (String doc : clonedList) { // Use clonedList instead of messageList
-            if (!documentTable.containsValue(doc)) {  // Verifica se o documento já está na tabela
-                String docId = UUID.randomUUID().toString();
-                documentTable.put(docId, doc);
-                System.out.println("Documento confirmado no líder via RMI: " + doc + " com ID: " + docId);
-            }
-        }
-
-        // Limpa a lista de mensagens, pois os documentos foram confirmados
-        messageList.clear();
-        System.out.println("Commit confirmado no líder via RMI. Lista de mensagens limpa.");
     }
 
     // Retorna a tabela de documentos confirmados
@@ -179,93 +158,77 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     }
 
     @Override
-    public synchronized void sendCommitMessage() throws RemoteException {
-        String commitMessage = "HEARTBEAT:commit:" + UUID.randomUUID().toString();
+    public synchronized void sendCommitMessage(String doc) throws RemoteException {
+        String commitMessage = "HEARTBEAT:commit:" + UUID.randomUUID().toString() + ":" + doc;
         System.out.println("Commit Message enviado: " + commitMessage);
-
+    
         // Configurações do grupo multicast
         String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
         int multicastPort = MulticastConfig.MULTICAST_PORT;
-
+    
         try (DatagramSocket socket = new DatagramSocket()) {
             InetAddress group = InetAddress.getByName(multicastAddress);
-
+    
             // Constrói o pacote de mensagem
             byte[] buffer = commitMessage.getBytes();
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, multicastPort);
-
+    
             // Envia o pacote para o grupo multicast
             socket.send(packet);
-
-            System.out.println("Mensagem de commit enviada para o grupo multicast: " + multicastAddress + ":" + multicastPort);
+    
+            System.out.println("Mensagem de commit enviada: " + commitMessage);
         } catch (Exception e) {
             System.out.println("Erro ao enviar mensagem de commit em multicast: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
+     // Confirma o commit e adiciona os documentos à tabela de documentos
     @Override
-    public synchronized void receiveCommitMessage(String commitMessage) throws RemoteException {
-        System.out.println("Commit Message recebido: " + commitMessage);
+    public synchronized void commit() throws RemoteException {
+        // Clonar a lista de mensagens antes de apagá-la
+        ArrayList<String> clonedList = new ArrayList<>(messageList);
+        System.out.println("Lista clonada antes do commit via RMI: " + clonedList);
 
-        // Processa a mensagem de commit, que tem a estrutura: HEARTBEAT:commit:{uuid}
-        String[] parts = commitMessage.split(":");
-        if (parts.length >= 3) {
-            String commitId = parts[2]; // UUID da mensagem de commit
-
-            // Verifica se há atualizações pendentes
-            if (!pendingUpdates.isEmpty()) {
-                // Processa as atualizações pendentes
-                for (String update : pendingUpdates) {
-                    // Se for uma remoção, removemos o documento
-                    if (update.startsWith("REMOVE:")) {
-                        String docToRemove = update.substring(7); // Remove o prefixo "REMOVE:"
-                        removeElement(docToRemove.trim());
-                        System.out.println("Documento removido durante o commit: " + docToRemove);
-                    } else {
-                        // Se for uma adição, adicionamos o documento
-                        addElement(update.trim());
-                        System.out.println("Documento adicionado durante o commit: " + update);
-                    }
-                }
-
-                // Limpa as atualizações pendentes após o commit
-                clearPendingUpdates();
-                System.out.println("Todas as atualizações pendentes processadas e limpas.");
-            } else {
-                System.out.println("Nenhuma atualização pendente para processar no commit.");
+        // Adiciona documentos confirmados na documentTable
+        for (String doc : clonedList) {
+            if (!documentTable.containsValue(doc)) {  // Verifica se o documento já está na tabela
+                String docId = UUID.randomUUID().toString();
+                documentTable.put(docId, doc);
+                System.out.println("Documento confirmado no líder via RMI: " + doc + " com ID: " + docId);
             }
-
-            // Envia ACK confirmando o processamento do commit
-            sendAck(this.uuid, commitId);
-        } else {
-            System.out.println("Mensagem de commit inválida: " + commitMessage);
         }
+
+        // Limpa a lista de mensagens, pois os documentos foram confirmados
+        messageList.clear();
+        System.out.println("Commit confirmado no líder via RMI. Lista de mensagens limpa.");
     }
 
+        @Override
+        public synchronized void sendAck(String id, String requestId) throws RemoteException {
+            // Adiciona o UUID do remetente ao conjunto de ACKs para o requestId
+            heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(id);
+
+            // Log para depuração: confirma o envio do ACK
+            System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
+
+            // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
+            System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
+
+        }
+
     @Override
-    public synchronized void sendAck(String id, String requestId) throws RemoteException {
-        // Adiciona o UUID do remetente ao conjunto de ACKs para o requestId
-        heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(id);
-
-        // Log para depuração: confirma o envio do ACK
-        System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
-
-        // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
-        System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
-    }
-
-    
-
-    @Override
-    public synchronized void receiveAck(String uuid, String requestId) throws RemoteException {
-        System.out.println("ACK recebido de: " + uuid + " para o requestId: " + requestId);
-        heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(uuid);
+    public synchronized void clearAcks(String requestId) throws RemoteException {
+        heartbeatAcks.remove(requestId);
     }
 
     @Override
     public synchronized Set<String> getAcksForHeartbeat(String requestId) throws RemoteException {
-        return heartbeatAcks.getOrDefault(requestId, new CopyOnWriteArraySet<>());
+        Set<String> acks = heartbeatAcks.get(requestId);
+        if (acks == null) {
+            acks = new CopyOnWriteArraySet<>();
+        }
+        return acks;
     }
     
 }

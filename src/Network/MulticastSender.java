@@ -21,45 +21,43 @@ public class MulticastSender extends Thread {
     }
 
     @Override
-    public void run() {
-        try {
-            while (true) {
-                List<String> docs = listManager.allMsgs();
+public void run() {
+    try {
+        while (true) {
+            List<String> docs = listManager.allMsgs();
 
-                if (!docs.isEmpty()) {
-                    for (String doc : docs) {
-                        String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
-                        //print do uuid do lider
-                        System.out.println("UUID do líder: " + uuid);
-                        listManager.sendSyncMessage(doc, requestId);
+            if (!docs.isEmpty()) {
+                for (String doc : docs) {
+                    String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
+                    System.out.println("UUID do líder: " + uuid);
+                    listManager.sendSyncMessage(doc, requestId);
 
-                        // Processar ACKs de forma síncrona
-                        boolean majorityReceived = waitForAcks(requestId, ACK_TIMEOUT);
-                        processFinalAcks(requestId); 
-                        if (majorityReceived) {
-                            listManager.sendCommitMessage();
-                            listManager.commit();
-                            listManager.addClone();
-                            System.out.println("Commit realizado para o requestId: " + requestId);
-                        } else {
-                            System.out.println("Não foi possível receber ACKs suficientes para o requestId: " + requestId);
-                        }
+                    // Processar ACKs de forma síncrona
+                    boolean ackReceived = waitForAcks(requestId, ACK_TIMEOUT);
 
-                        // Aguardar 5 segundos antes de enviar o próximo documento
-                        Thread.sleep(HEARTBEAT_INTERVAL);
+                    if (ackReceived) {
+                        listManager.sendCommitMessage(doc); // Envia o commit
+                        listManager.commit(); // Realiza o commit
+                        listManager.addClone(); // Atualiza clones, se necessário
+                        System.out.println("Commit realizado para o requestId: " + requestId);
+                        listManager.clearAcks(requestId);
+                    } else {
+                        System.out.println("Nenhum ACK recebido para o requestId: " + requestId);
                     }
-                } else {
-                    // Não enviar heartbeat de sincronização quando a lista está vazia
-                    System.out.println("Nenhum documento para sincronizar. Heartbeat de sync não enviado.");
-                }
 
-                // Aguardar 5 segundos antes de verificar novamente a lista de documentos
-                Thread.sleep(HEARTBEAT_INTERVAL);
+                    // Aguardar antes de enviar o próximo documento
+                    Thread.sleep(HEARTBEAT_INTERVAL);
+                }
+            } else {
+                System.out.println("Nenhum documento para sincronizar. Heartbeat de sync não enviado.");
             }
-        } catch (RemoteException | InterruptedException e) {
-            e.printStackTrace();
+
+            Thread.sleep(HEARTBEAT_INTERVAL);
         }
+    } catch (RemoteException | InterruptedException e) {
+        e.printStackTrace();
     }
+}
 
     private boolean waitForAcks(String requestId, int timeoutMillis) {
         long endTime = System.currentTimeMillis() + timeoutMillis;
@@ -69,6 +67,8 @@ public class MulticastSender extends Thread {
         while (System.currentTimeMillis() < endTime) {
             try {
                 acks = listManager.getAcksForHeartbeat(requestId);
+                //print do numero de acks recebidos
+                System.out.println("Número de ACKs recebidos para requestId " + requestId + ": " + acks.size());
                 if (acks.size() >= 2) { // Verifica se pelo menos dois elementos enviaram um ACK
                     System.out.println("Majority of ACKs received for requestId: " + requestId);
                     majorityReceived = true;
@@ -85,16 +85,6 @@ public class MulticastSender extends Thread {
             }
         }
         return majorityReceived;
-    }
-
-    private void processFinalAcks(String requestId) {
-        try {
-            Set<String> acks = listManager.getAcksForHeartbeat(requestId); // Obter os ACKs finais após o timeout
-            System.out.println("Número de ACKs recebidos para requestId " + requestId + ": " + acks.size());
-            // Você pode fazer mais verificações ou atualizações aqui
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
     }
 
     public String getLiderId() {

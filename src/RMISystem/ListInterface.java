@@ -20,12 +20,12 @@ public interface ListInterface extends Remote {
 
     // Métodos para comunicação distribuída
     void sendSyncMessage(String doc, String requestId) throws RemoteException;
-    void sendCommitMessage() throws RemoteException;
+    void sendCommitMessage(String doc) throws RemoteException;
     void sendAck(String uuid, String requestId) throws RemoteException;
     Set<String> getAcksForHeartbeat(String requestId) throws RemoteException;
 
     // Novos métodos para recepção de mensagens
     void receiveSyncMessage(String syncMessage, String id) throws RemoteException;
-    void receiveCommitMessage(String commitMessage) throws RemoteException;
-    void receiveAck(String uuid, String requestId) throws RemoteException;
+    void clearAcks(String requestId) throws RemoteException;
+
 }

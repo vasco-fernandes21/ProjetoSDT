@@ -6,7 +6,6 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.rmi.RemoteException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,7 +14,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class MulticastReceiver extends Thread {
     private final String uuid;
     private final ListInterface listManager;
-    private final Map<String, List<String>> documentVersions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> documentTable = new ConcurrentHashMap<>();
     private final List<String> pendingUpdates = new CopyOnWriteArrayList<>();
 
@@ -24,10 +22,10 @@ public class MulticastReceiver extends Thread {
     public MulticastReceiver(String uuid, List<String> initialSnapshot, ListInterface listManager) {
         this.uuid = uuid;
         this.listManager = listManager;
-        // Initialize documentVersions with the received snapshot
+        // Initialize documentTable with the received snapshot
         for (String doc : initialSnapshot) {
             if (!doc.equals("none")) {
-                documentVersions.put(uuid, new CopyOnWriteArrayList<>(Arrays.asList(doc.trim())));
+                documentTable.put(uuid, doc.trim());
                 System.out.println("Initial document synchronized: " + doc.trim());
             }
         }
@@ -48,29 +46,22 @@ public class MulticastReceiver extends Thread {
             while (isRunning) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet); // Escuta mensagens do grupo multicast
-                //se receber alguma mensagem no grupo multicast avisa que recebeu
-                System.out.println("Mensagem recebida no grupo multicast");
 
-                String syncMessage = new String(packet.getData(), 0, packet.getLength());
-                System.out.println("Sync Message recebido: " + syncMessage);
+                String message = new String(packet.getData(), 0, packet.getLength());
 
-                // Processa a mensagem de sincronização
-                listManager.receiveSyncMessage(syncMessage, uuid);
+                // Decide qual método chamar com base no conteúdo da mensagem
+                if (message.startsWith("HEARTBEAT:sync:")) {
+                    listManager.receiveSyncMessage(message, uuid);
+                } else if (message.startsWith("HEARTBEAT:commit:")) {
+                    receiveCommitMessage(message); // Chama o método local para processar a mensagem de commit
+                } else {
+                    System.out.println("Mensagem desconhecida recebida: " + message);
+                }
             }
         } catch (Exception e) {
             System.out.println("Erro ao receber mensagens multicast: " + e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    public synchronized void receiveCommitMessage(String commitMessage) throws RemoteException {
-        System.out.println("Commit Message received: " + commitMessage);
-        listManager.receiveCommitMessage(commitMessage);
-    }
-
-    public synchronized void receiveAck(String uuid, String requestId) throws RemoteException {
-        System.out.println("ACK received from: " + uuid + " for requestId: " + requestId);
-        listManager.receiveAck(uuid, requestId);
     }
 
     public void stopRunning() {
@@ -80,5 +71,25 @@ public class MulticastReceiver extends Thread {
 
     public Map<String, String> getDocumentTable() {
         return documentTable;
+    }
+
+    // Método local para processar a mensagem de commit
+    private synchronized void receiveCommitMessage(String commitMessage) {
+        System.out.println("Commit Message recebido: " + commitMessage);
+
+        // Processa a mensagem de commit, que tem a estrutura: HEARTBEAT:commit:{uuid}:{doc}
+        String[] parts = commitMessage.split(":");
+        if (parts.length >= 4) {
+            String commitId = parts[2]; // UUID da mensagem de commit
+            String doc = parts[3]; // Documento a ser armazenado
+
+            // Adiciona o documento na documentTable local
+            if (!documentTable.containsValue(doc)) {
+                documentTable.put(commitId, doc);
+                System.out.println("Documento armazenado no receiver: " + doc + " com ID: " + commitId);
+            }
+        } else {
+            System.out.println("Mensagem de commit inválida: " + commitMessage);
+        }
     }
 }
