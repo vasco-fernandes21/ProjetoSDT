@@ -2,6 +2,9 @@ package Network;
 
 import RMISystem.ListInterface;
 
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
 import java.rmi.RemoteException;
 import java.util.Arrays;
 import java.util.List;
@@ -34,19 +37,30 @@ public class MulticastReceiver extends Thread {
 
     @Override
     public void run() {
-        while (isRunning) { // Check the control flag
-            try {
-                // Placeholder for any RMI-based listening or processing
-                Thread.sleep(1000); // Sleep to prevent tight loop
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
+        // Configurações do grupo multicast
+        String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
+        int multicastPort = MulticastConfig.MULTICAST_PORT;
 
-    public synchronized void receiveSyncMessage(String syncMessage) throws RemoteException {
-        System.out.println("Sync Message received: " + syncMessage);
-        listManager.receiveSyncMessage(syncMessage);
+        try (MulticastSocket socket = new MulticastSocket(multicastPort)) {
+            InetAddress group = InetAddress.getByName(multicastAddress);
+            socket.joinGroup(group); // Junta-se ao grupo multicast
+            System.out.println("Aguardando mensagens multicast no grupo " + multicastAddress + ":" + multicastPort);
+
+            byte[] buffer = new byte[1024]; // Buffer para receber mensagens
+            while (isRunning) {
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                socket.receive(packet); // Escuta mensagens do grupo multicast
+
+                String syncMessage = new String(packet.getData(), 0, packet.getLength());
+                System.out.println("Sync Message recebido: " + syncMessage);
+
+                // Processa a mensagem de sincronização
+                listManager.receiveSyncMessage(syncMessage, uuid);
+            }
+        } catch (Exception e) {
+            System.out.println("Erro ao receber mensagens multicast: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     public synchronized void receiveCommitMessage(String commitMessage) throws RemoteException {

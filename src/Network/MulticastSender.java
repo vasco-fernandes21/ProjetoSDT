@@ -31,7 +31,7 @@ public class MulticastSender extends Thread {
                         String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
                         //print do uuid do lider
                         System.out.println("UUID do líder: " + uuid);
-                        listManager.sendSyncMessage(doc, requestId, uuid);
+                        listManager.sendSyncMessage(doc, requestId);
 
                         // Processar ACKs de forma síncrona
                         boolean majorityReceived = waitForAcks(requestId, ACK_TIMEOUT);
@@ -65,6 +65,15 @@ public class MulticastSender extends Thread {
         long endTime = System.currentTimeMillis() + timeoutMillis;
         Set<String> acks;
         boolean majorityReceived = false;
+
+        //recebe o numero de elementos que existem no nodeRegistry
+        try {
+            NodeRegistry nodeRegistry = new NodeRegistry();
+            Map<String, ListInterface> nodes = nodeRegistry.getNodes();
+            System.out.println("Número de elementos no NodeRegistry: " + nodes.size());
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
 
         while (System.currentTimeMillis() < endTime) {
             try {

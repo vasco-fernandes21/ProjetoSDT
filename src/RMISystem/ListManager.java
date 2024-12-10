@@ -1,7 +1,10 @@
 package RMISystem;
 
-import Network.MulticastSender;
+import Network.MulticastConfig;
 
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.rmi.registry.LocateRegistry;
@@ -120,69 +123,36 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     public synchronized void clearPendingUpdates() throws RemoteException {
         pendingUpdates.clear();
         System.out.println("Atualizações pendentes limpas via RMI.");
-        }
+    }
 
-        @Override
-        public synchronized void sendSyncMessage(String doc, String requestId, String id) throws RemoteException {
+    // Envia uma mensagem de sincronização
+    @Override
+    public synchronized void sendSyncMessage(String doc, String requestId) throws RemoteException {
         String syncMessage = "HEARTBEAT:sync:" + doc + ":" + requestId;
         System.out.println("Sync Message enviado: " + syncMessage);
-    
-        // Imprime o id dos nós registados
-        Map<String, ListInterface> nodesBefore = nodeRegistry.getNodes();
-        System.out.println("Nós registados antes do envio: " + nodesBefore.keySet());
-    
-        for (String nodeId : nodesBefore.keySet()) {
-            if (!nodeId.equals(id)) { // Verifica se o nodeId não é o próprio líder
-                ListInterface node = nodeRegistry.getNode(nodeId);
-                if (node != null) {
-                    try {
-                        receiveSyncMessage(syncMessage); 
-                    } catch (RemoteException e) {
-                        System.out.println("Erro ao enviar SyncMessage para o nó " + nodeId + ": " + e.getMessage());
-                    }
-                } else {
-                    System.out.println("Nó não encontrado: " + nodeId);
-                }
-            } else {
-                System.out.println("Ignorando envio para o próprio nó líder: " + nodeId);
-            }
-        }
-    
-        Map<String, ListInterface> nodesAfter = nodeRegistry.getNodes();
-        System.out.println("Nós registados após o envio: " + nodesAfter.keySet());
-    }
 
-    @Override
-    public synchronized void sendCommitMessage() throws RemoteException {
-        String commitMessage = "HEARTBEAT:commit:" + UUID.randomUUID().toString();
-        System.out.println("Commit Message enviado: " + commitMessage);
+        // Configurações do grupo multicast
+        String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
+        int multicastPort = MulticastConfig.MULTICAST_PORT;
 
-        // Envia para todos os nós registados
-        for (String nodeId : nodeRegistry.getNodes().keySet()) {
-            ListInterface node = nodeRegistry.getNode(nodeId);
-            if (node != null) {
-                try {
-                    node.receiveCommitMessage(commitMessage); // Chama o método do nó remoto para receber a commit message
-                } catch (RemoteException e) {
-                    System.out.println("Erro ao enviar CommitMessage para o nó " + nodeId + ": " + e.getMessage());
-                }
-            }
+        try (DatagramSocket socket = new DatagramSocket()) {
+            InetAddress group = InetAddress.getByName(multicastAddress);
+
+            // Constrói o pacote de mensagem
+            byte[] buffer = syncMessage.getBytes();
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, multicastPort);
+
+            // Envia o pacote para o grupo multicast
+            socket.send(packet);
+
+        } catch (Exception e) {
+            System.out.println("Erro ao enviar mensagem em multicast: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     @Override
-    public synchronized void sendAck(String uuid, String requestId) throws RemoteException {
-        System.out.println("ACK enviado para o líder: " + uuid + " para o requestId: " + requestId);
-        heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(uuid);
-    }
-
-    @Override
-    public synchronized Set<String> getAcksForHeartbeat(String requestId) throws RemoteException {
-        return heartbeatAcks.getOrDefault(requestId, new CopyOnWriteArraySet<>());
-    }
-
-    @Override
-    public synchronized void receiveSyncMessage(String syncMessage) throws RemoteException {
+    public synchronized void receiveSyncMessage(String syncMessage, String id) throws RemoteException {
         System.out.println("Sync Message recebido: " + syncMessage);
 
         // Processa a mensagem de sincronização
@@ -202,9 +172,35 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
             }
 
             // Envia ACK para o líder confirmando o recebimento
-            sendAck(this.uuid, requestId);
+            sendAck(id, requestId);
         } else {
             System.out.println("Mensagem de heartbeat inválida: " + syncMessage);
+        }
+    }
+
+    @Override
+    public synchronized void sendCommitMessage() throws RemoteException {
+        String commitMessage = "HEARTBEAT:commit:" + UUID.randomUUID().toString();
+        System.out.println("Commit Message enviado: " + commitMessage);
+
+        // Configurações do grupo multicast
+        String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
+        int multicastPort = MulticastConfig.MULTICAST_PORT;
+
+        try (DatagramSocket socket = new DatagramSocket()) {
+            InetAddress group = InetAddress.getByName(multicastAddress);
+
+            // Constrói o pacote de mensagem
+            byte[] buffer = commitMessage.getBytes();
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, multicastPort);
+
+            // Envia o pacote para o grupo multicast
+            socket.send(packet);
+
+            System.out.println("Mensagem de commit enviada para o grupo multicast: " + multicastAddress + ":" + multicastPort);
+        } catch (Exception e) {
+            System.out.println("Erro ao enviar mensagem de commit em multicast: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -248,8 +244,28 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     }
 
     @Override
+    public synchronized void sendAck(String id, String requestId) throws RemoteException {
+        // Adiciona o UUID do remetente ao conjunto de ACKs para o requestId
+        heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(id);
+
+        // Log para depuração: confirma o envio do ACK
+        System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
+
+        // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
+        System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
+    }
+
+    
+
+    @Override
     public synchronized void receiveAck(String uuid, String requestId) throws RemoteException {
         System.out.println("ACK recebido de: " + uuid + " para o requestId: " + requestId);
         heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(uuid);
     }
+
+    @Override
+    public synchronized Set<String> getAcksForHeartbeat(String requestId) throws RemoteException {
+        return heartbeatAcks.getOrDefault(requestId, new CopyOnWriteArraySet<>());
+    }
+    
 }
