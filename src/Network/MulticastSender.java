@@ -66,15 +66,6 @@ public class MulticastSender extends Thread {
         Set<String> acks;
         boolean majorityReceived = false;
 
-        //recebe o numero de elementos que existem no nodeRegistry
-        try {
-            NodeRegistry nodeRegistry = new NodeRegistry();
-            Map<String, ListInterface> nodes = nodeRegistry.getNodes();
-            System.out.println("Número de elementos no NodeRegistry: " + nodes.size());
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-
         while (System.currentTimeMillis() < endTime) {
             try {
                 acks = listManager.getAcksForHeartbeat(requestId);

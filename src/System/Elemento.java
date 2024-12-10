@@ -58,7 +58,7 @@ public class Elemento {
                 System.out.println("Snapshot recebido do líder: " + snapshot);
 
                 // Inicializar receiver com o snapshot e listManager
-                receiver = new MulticastReceiver(this.uuid, snapshot, null, listManager);
+                receiver = new MulticastReceiver(this.uuid, snapshot, listManager);
                 receiver.start();  // Inicia a thread do receiver
 
                 // Adicionar o receiver ao mapa

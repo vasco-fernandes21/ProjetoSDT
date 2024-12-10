@@ -14,7 +14,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class MulticastReceiver extends Thread {
     private final String uuid;
-    private final String leaderUuid;
     private final ListInterface listManager;
     private final Map<String, List<String>> documentVersions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> documentTable = new ConcurrentHashMap<>();
@@ -22,9 +21,8 @@ public class MulticastReceiver extends Thread {
 
     private volatile boolean isRunning = true;
 
-    public MulticastReceiver(String uuid, List<String> initialSnapshot, String leaderUuid, ListInterface listManager) {
+    public MulticastReceiver(String uuid, List<String> initialSnapshot, ListInterface listManager) {
         this.uuid = uuid;
-        this.leaderUuid = leaderUuid;
         this.listManager = listManager;
         // Initialize documentVersions with the received snapshot
         for (String doc : initialSnapshot) {
@@ -50,6 +48,8 @@ public class MulticastReceiver extends Thread {
             while (isRunning) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet); // Escuta mensagens do grupo multicast
+                //se receber alguma mensagem no grupo multicast avisa que recebeu
+                System.out.println("Mensagem recebida no grupo multicast");
 
                 String syncMessage = new String(packet.getData(), 0, packet.getLength());
                 System.out.println("Sync Message recebido: " + syncMessage);
