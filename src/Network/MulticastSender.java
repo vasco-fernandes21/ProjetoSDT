@@ -31,8 +31,6 @@ public void run() {
                     String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
                     System.out.println("UUID do líder: " + uuid);
                     listManager.sendSyncMessage(doc, requestId);
-
-                    // Processar ACKs de forma síncrona
                     boolean ackReceived = waitForAcks(requestId, ACK_TIMEOUT);
 
                     if (ackReceived) {
@@ -62,13 +60,16 @@ public void run() {
     private boolean waitForAcks(String requestId, int timeoutMillis) {
         long endTime = System.currentTimeMillis() + timeoutMillis;
         Set<String> acks;
+        int teste;
+
         boolean majorityReceived = false;
 
         while (System.currentTimeMillis() < endTime) {
             try {
+                teste = listManager.getAckCounts(requestId);
                 acks = listManager.getAcksForHeartbeat(requestId);
                 //print do numero de acks recebidos
-                System.out.println("Número de ACKs recebidos para requestId " + requestId + ": " + acks.size());
+                System.out.println(teste);
                 if (acks.size() >= 2) { // Verifica se pelo menos dois elementos enviaram um ACK
                     System.out.println("Majority of ACKs received for requestId: " + requestId);
                     majorityReceived = true;

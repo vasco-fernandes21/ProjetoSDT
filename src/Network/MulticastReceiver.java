@@ -6,28 +6,26 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.rmi.RemoteException;
-import java.util.List;
+import java.util.Hashtable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.UUID;
 
 public class MulticastReceiver extends Thread {
     private final String uuid;
     private final ListInterface listManager;
     private final ConcurrentHashMap<String, String> documentTable = new ConcurrentHashMap<>();
-    private final List<String> pendingUpdates = new CopyOnWriteArrayList<>();
+    private final Hashtable<String, String> tempFiles = new Hashtable<>();
 
     private volatile boolean isRunning = true;
 
-    public MulticastReceiver(String uuid, List<String> initialSnapshot, ListInterface listManager) {
+    public MulticastReceiver(String uuid, Hashtable<String, String> initialSnapshot, ListInterface listManager) {
         this.uuid = uuid;
         this.listManager = listManager;
         // Initialize documentTable with the received snapshot
-        for (String doc : initialSnapshot) {
-            if (!doc.equals("none")) {
-                documentTable.put(uuid, doc.trim());
-                System.out.println("Initial document synchronized: " + doc.trim());
-            }
+        for (Map.Entry<String, String> entry : initialSnapshot.entrySet()) {
+            documentTable.put(entry.getKey(), entry.getValue().trim());
+            System.out.println("Receiver sincronizado: " + entry.getValue().trim());
         }
     }
 
@@ -51,7 +49,7 @@ public class MulticastReceiver extends Thread {
 
                 // Decide qual método chamar com base no conteúdo da mensagem
                 if (message.startsWith("HEARTBEAT:sync:")) {
-                    listManager.receiveSyncMessage(message, uuid);
+                    receiveSyncMessage(message);
                 } else if (message.startsWith("HEARTBEAT:commit:")) {
                     receiveCommitMessage(message); // Chama o método local para processar a mensagem de commit
                 } else {
@@ -73,6 +71,35 @@ public class MulticastReceiver extends Thread {
         return documentTable;
     }
 
+    public Hashtable<String, String> getTempFiles() {
+        return tempFiles;
+    }
+
+    private synchronized void receiveSyncMessage(String syncMessage) {
+        System.out.println("Sync Message recebido: " + syncMessage);
+
+        // Processa a mensagem de sincronização
+        String[] parts = syncMessage.split(":");
+        if (parts.length >= 4) {
+            String doc = parts[2]; // Documento a ser sincronizado
+            String requestId = parts[3]; // ID do request para o ACK
+
+            // Armazena o documento na estrutura tempFiles
+            String tempFileId = UUID.randomUUID().toString();
+            tempFiles.put(tempFileId, doc.trim());
+            System.out.println("Documento temporário armazenado no receiver: " + doc.trim() + " com ID: " + tempFileId);
+
+            // Envia ACK para o líder confirmando o recebimento
+            try {
+                listManager.sendAck(uuid, requestId);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println("Mensagem de heartbeat inválida: " + syncMessage);
+        }
+    }
+
     // Método local para processar a mensagem de commit
     private synchronized void receiveCommitMessage(String commitMessage) {
         System.out.println("Commit Message recebido: " + commitMessage);
@@ -83,11 +110,28 @@ public class MulticastReceiver extends Thread {
             String commitId = parts[2]; // UUID da mensagem de commit
             String doc = parts[3]; // Documento a ser armazenado
 
-            // Adiciona o documento na documentTable local
-            if (!documentTable.containsValue(doc)) {
+            // Verifica se o documento está na tempFiles antes de adicioná-lo à documentTable
+            if (tempFiles.containsValue(doc)) {
                 documentTable.put(commitId, doc);
-                System.out.println("Documento armazenado no receiver: " + doc + " com ID: " + commitId);
+                System.out.println("Documento confirmado no receiver: " + doc + " com ID: " + commitId);
+
+                // Remove o documento da tempFiles após adicioná-lo à documentTable
+                tempFiles.values().remove(doc);
+            } else {
+                System.out.println("Documento não encontrado na tempFiles: " + doc);
             }
+
+            // Mover documentos restantes de tempFiles para documentTable
+            for (Map.Entry<String, String> entry : tempFiles.entrySet()) {
+                if (!documentTable.containsValue(entry.getValue())) {
+                    documentTable.put(entry.getKey(), entry.getValue());
+                    System.out.println("Documento confirmado no receiver: " + entry.getValue() + " com ID: " + entry.getKey());
+                }
+            }
+
+            // Limpar tempFiles após o commit
+            tempFiles.clear();
+            System.out.println("tempFiles limpo após o commit.");
         } else {
             System.out.println("Mensagem de commit inválida: " + commitMessage);
         }

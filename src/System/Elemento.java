@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Hashtable;
 
 public class Elemento {
     private static final Map<String, MulticastReceiver> receiverMap = new HashMap<>();
@@ -54,7 +55,7 @@ public class Elemento {
                 ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
                 // Solicitar snapshot ao líder
-                ArrayList<String> snapshot = listManager.getSnapshot();
+                Hashtable<String, String> snapshot = listManager.getSnapshot();
                 System.out.println("Snapshot recebido do líder: " + snapshot);
 
                 // Inicializar receiver com o snapshot e listManager
@@ -105,6 +106,29 @@ public class Elemento {
             }
         } else {
             System.out.println("Elemento " + uuid + " não encontrado.");
+        }
+    }
+
+        public void promoteToLeader() {
+        if (receiver != null) {
+            receiver.stopRunning();
+            receiverMap.remove(this.uuid);
+            System.out.println("Receiver stopped for node: " + this.uuid);
+        }
+    
+        try {
+            Registry registry = LocateRegistry.getRegistry("localhost");
+            ListInterface listManager = (ListInterface) registry.lookup("ListManager");
+    
+            MulticastSender sender = new MulticastSender(listManager, this.uuid);
+            sender.start();  // Inicia a thread do sender
+    
+            // Registrar o nó no NodeRegistry
+            nodeRegistry.registerNode(this.uuid, listManager);
+    
+            System.out.println("Node " + this.uuid + " promoted to leader.");
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

@@ -11,7 +11,7 @@ public interface ListInterface extends Remote {
     void addElement(String s) throws RemoteException;
     void removeElement(String s) throws RemoteException;
     ArrayList<String> allMsgs() throws RemoteException;
-    ArrayList<String> getSnapshot() throws RemoteException;
+    Hashtable<String, String> getSnapshot() throws RemoteException;
     void commit() throws RemoteException;
     void addClone() throws RemoteException;
     Hashtable<String, String> getDocumentTable() throws RemoteException;
@@ -27,5 +27,6 @@ public interface ListInterface extends Remote {
     // Novos métodos para recepção de mensagens
     void receiveSyncMessage(String syncMessage, String id) throws RemoteException;
     void clearAcks(String requestId) throws RemoteException;
+    int getAckCounts(String requestId) throws RemoteException;
 
 }

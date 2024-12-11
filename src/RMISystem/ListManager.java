@@ -22,6 +22,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     private final String uuid = UUID.randomUUID().toString();
     private final ArrayList<String> messageList;  // Lista de documentos
     private final Hashtable<String, String> documentTable; // Tabela de documentos
+    private final Hashtable<String, String> tempFiles = new Hashtable<>();
     private final List<String> pendingUpdates; // Lista de atualizações pendentes
     private static final ConcurrentHashMap<String, Set<String>> heartbeatAcks = new ConcurrentHashMap<>(); // ACKs para heartbeats
     private final NodeRegistryInterface nodeRegistry;
@@ -80,9 +81,9 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
 
     // Fornece o estado atual da lista (snapshot) para um novo elemento
     @Override
-    public synchronized ArrayList<String> getSnapshot() throws RemoteException {
+    public synchronized Hashtable<String, String> getSnapshot() throws RemoteException {
         System.out.println("Snapshot solicitado por um novo elemento via RMI.");
-        return new ArrayList<>(messageList);
+        return new Hashtable<>(documentTable);
     }
 
     // Retorna a tabela de documentos confirmados
@@ -133,13 +134,13 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     @Override
     public synchronized void receiveSyncMessage(String syncMessage, String id) throws RemoteException {
         System.out.println("Sync Message recebido: " + syncMessage);
-
+    
         // Processa a mensagem de sincronização
         String[] parts = syncMessage.split(":");
         if (parts.length >= 4) {
             String doc = parts[2]; // Documento a ser sincronizado
             String requestId = parts[3]; // ID do request para o ACK
-
+    
             // Verifica se há atualizações pendentes
             if (!pendingUpdates.isEmpty()) {
                 pendingUpdates.add(syncMessage);
@@ -149,7 +150,12 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
                 addElement(doc.trim());
                 System.out.println("Heartbeat sincronizado com documento: " + doc.trim());
             }
-
+    
+            // Armazena o documento na estrutura tempFiles
+            String tempFileId = UUID.randomUUID().toString();
+            tempFiles.put(tempFileId, doc.trim());
+            System.out.println("Documento temporário armazenado: " + doc.trim() + " com ID: " + tempFileId);
+    
             // Envia ACK para o líder confirmando o recebimento
             sendAck(id, requestId);
         } else {
@@ -229,6 +235,16 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
             acks = new CopyOnWriteArraySet<>();
         }
         return acks;
+    }
+
+    //get ackCounts que devolve o numero de acks por heartbeat
+    @Override
+    public synchronized int getAckCounts(String requestId) throws RemoteException {
+        Set<String> acks = heartbeatAcks.get(requestId);
+        if (acks == null) {
+            acks = new CopyOnWriteArraySet<>();
+        }
+        return acks.size();
     }
     
 }
