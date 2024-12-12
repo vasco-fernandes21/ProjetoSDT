@@ -19,6 +19,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.Map;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 
 public class ListManager extends UnicastRemoteObject implements ListInterface {
     private final String uuid = UUID.randomUUID().toString();
@@ -27,6 +29,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     private final Hashtable<String, String> tempFiles = new Hashtable<>();
     private final List<String> pendingUpdates; // Lista de atualizações pendentes
     private static final ConcurrentHashMap<String, Set<String>> heartbeatAcks = new ConcurrentHashMap<>(); // ACKs para heartbeats
+    private static final ConcurrentHashMap<String, Long> requestTimestamps = new ConcurrentHashMap<>(); // Timestamps para requestIds
     private final NodeRegistryInterface nodeRegistry;
 
     public ListManager() throws RemoteException {
@@ -113,6 +116,9 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         String syncMessage = "HEARTBEAT:sync:" + doc + ":" + requestId;
         System.out.println("Sync Message enviado: " + syncMessage);
 
+        // Armazena o timestamp do requestId
+        requestTimestamps.put(requestId, System.currentTimeMillis());
+
         // Configurações do grupo multicast
         String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
         int multicastPort = MulticastConfig.MULTICAST_PORT;
@@ -133,57 +139,25 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         }
     }
 
-    //@Override
-    // public synchronized void receiveSyncMessage(String syncMessage, String id) throws RemoteException {
-       //  System.out.println("Sync Message recebido: " + syncMessage);
-    
-        // Processa a mensagem de sincronização
-         //String[] parts = syncMessage.split(":");
-        // if (parts.length >= 4) {
-         //    String doc = parts[2]; // Documento a ser sincronizado
-        //     String requestId = parts[3]; // ID do request para o ACK
-    
-            // Verifica se há atualizações pendentes
-       //      if (!pendingUpdates.isEmpty()) {
-       //          pendingUpdates.add(syncMessage);
-       //          System.out.println("Mensagem de sincronização pendente armazenada: " + syncMessage);
-       //      } else {
-                // Adiciona o documento à lista e marca como atualização pendente
-       //          addElement(doc.trim());
-       //          System.out.println("Heartbeat sincronizado com documento: " + doc.trim());
-      //       }
-    
-            // Armazena o documento na estrutura tempFiles
-       //      String tempFileId = UUID.randomUUID().toString();
-      //       tempFiles.put(tempFileId, doc.trim());
-      //       System.out.println("Documento temporário armazenado: " + doc.trim() + " com ID: " + tempFileId);
-    
-            // Envia ACK para o líder confirmando o recebimento
-       //      sendAck(id, requestId);
-     //    } else {
-     //        System.out.println("Mensagem de heartbeat inválida: " + syncMessage);
-     //    }
-   //  }
-
     @Override
     public synchronized void sendCommitMessage(String doc) throws RemoteException {
         String commitMessage = "HEARTBEAT:commit:" + UUID.randomUUID().toString() + ":" + doc;
         System.out.println("Commit Message enviado: " + commitMessage);
-    
+
         // Configurações do grupo multicast
         String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
         int multicastPort = MulticastConfig.MULTICAST_PORT;
-    
+
         try (DatagramSocket socket = new DatagramSocket()) {
             InetAddress group = InetAddress.getByName(multicastAddress);
-    
+
             // Constrói o pacote de mensagem
             byte[] buffer = commitMessage.getBytes();
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, multicastPort);
-    
+
             // Envia o pacote para o grupo multicast
             socket.send(packet);
-    
+
             System.out.println("Mensagem de commit enviada: " + commitMessage);
         } catch (Exception e) {
             System.out.println("Erro ao enviar mensagem de commit em multicast: " + e.getMessage());
@@ -191,7 +165,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         }
     }
 
-     // Confirma o commit e adiciona os documentos à tabela de documentos
+    // Confirma o commit e adiciona os documentos à tabela de documentos
     @Override
     public synchronized void commit() throws RemoteException {
         // Clonar a lista de mensagens antes de apagá-la
@@ -212,22 +186,22 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         System.out.println("Commit confirmado no líder via RMI. Lista de mensagens limpa.");
     }
 
-        @Override
-        public synchronized void sendAck(String id, String requestId) throws RemoteException {
-            // Adiciona o UUID do remetente ao conjunto de ACKs para o requestId
-            heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(id);
+    @Override
+    public synchronized void sendAck(String id, String requestId) throws RemoteException {
+        // Adiciona o UUID do remetente ao conjunto de ACKs para o requestId
+        heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(id);
 
-            // Log para depuração: confirma o envio do ACK
-            System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
+        // Log para depuração: confirma o envio do ACK
+        System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
 
-            // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
-            System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
-
-        }
+        // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
+        System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
+    }
 
     @Override
     public synchronized void clearAcks(String requestId) throws RemoteException {
         heartbeatAcks.remove(requestId);
+        requestTimestamps.remove(requestId); // Remove o timestamp associado ao requestId
     }
 
     @Override
@@ -250,53 +224,67 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     }
 
     @Override
-public synchronized Map<String, Integer> heartbeatsSemAcks(Set<String> nodeIds) {
-    // Resultado final: Map com o número de heartbeats sem ACK para cada nó
-    Map<String, Integer> heartbeatsMissed = new HashMap<>();
+    public synchronized Map<String, Integer> heartbeatsSemAcks(String uuid) throws RemoteException {
+        // Obter todos os IDs dos nós registrados
+        Set<String> nodeIds = getNodeIds();
+
+        //Remove o líder da lista de nós
+        nodeIds.remove(uuid);
     
-    // Lista ordenada de requestIds por ordem de chegada (supõe-se que já esteja ordenada)
-    List<String> requestIds = new ArrayList<>(heartbeatAcks.keySet());
-
-    // Itera sobre cada nó fornecido
-    for (String nodeId : nodeIds) {
-        int heartbeatsMissedCount = 0; // Contador de heartbeats perdidos
-        boolean ackFound = false; // Flag para indicar se algum ACK foi encontrado
+        // Resultado final: Map com o número de heartbeats sem ACK para cada nó
+        Map<String, Integer> heartbeatsMissed = new HashMap<>();
         
-        // Percorre os requestIds do mais recente para o mais antigo
-        for (int i = requestIds.size() - 1; i >= 0; i--) {
-            String requestId = requestIds.get(i);
-            Set<String> acksForRequest = heartbeatAcks.getOrDefault(requestId, Collections.emptySet());
-
-            if (acksForRequest.contains(nodeId)) {
-                // Se o nó respondeu neste heartbeat, sai do loop
-                ackFound = true;
-                break;
-            } else {
-                // Incrementa o contador se o nó não respondeu
-                heartbeatsMissedCount++;
+        // Lista ordenada de requestIds por ordem de chegada com base nos timestamps
+        List<String> requestIds = requestTimestamps.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+    
+        // Itera sobre cada nó fornecido
+        for (String nodeId : nodeIds) {
+            int heartbeatsMissedCount = 0; // Contador de heartbeats perdidos
+            boolean ackFound = false; // Flag para indicar se algum ACK foi encontrado
+            
+            // Percorre os requestIds do mais recente para o mais antigo
+            for (int i = requestIds.size() - 1; i >= 0; i--) {
+                String requestId = requestIds.get(i);
+                Set<String> acksForRequest = heartbeatAcks.getOrDefault(requestId, Collections.emptySet());
+    
+                if (acksForRequest.contains(nodeId)) {
+                    // Se o nó respondeu neste heartbeat, sai do loop
+                    ackFound = true;
+                    break;
+                } else {
+                    // Incrementa o contador se o nó não respondeu
+                    heartbeatsMissedCount++;
+                }
             }
+    
+            // Se não foi encontrado nenhum ACK, todos os heartbeats são contados
+            if (!ackFound) {
+                heartbeatsMissedCount = requestIds.size();
+            }
+    
+            // Adiciona o resultado no mapa
+            heartbeatsMissed.put(nodeId, heartbeatsMissedCount);
+    
+            // Log do estado após cada iteração
+            System.out.println("ID do Nó: " + nodeId + ", Heartbeats desde último ACK: " + heartbeatsMissedCount);
         }
-
-        // Se não foi encontrado nenhum ACK, todos os heartbeats são contados
-        if (!ackFound) {
-            heartbeatsMissedCount = requestIds.size();
-        }
-
-        // Adiciona o resultado no mapa
-        heartbeatsMissed.put(nodeId, heartbeatsMissedCount);
-
-        // Log do estado após cada iteração
-        System.out.println("ID do Nó: " + nodeId + ", Heartbeats desde último ACK: " + heartbeatsMissedCount);
+    
+        return heartbeatsMissed;
     }
-
-    return heartbeatsMissed;
-}
 
     @Override
-    public synchronized Map<String, ListInterface> getNodes() throws RemoteException {
-        return nodeRegistry.getNodes();
+    public synchronized Set<String> getNodeIds() throws RemoteException {
+        return nodeRegistry.getNodeIds();
     }
 
-     
-    
+    // Método para imprimir o conteúdo inteiro do mapa heartbeatAcks
+    public synchronized void printHeartbeatAcks() {
+        System.out.println("Conteúdo do mapa heartbeatAcks:");
+        for (Map.Entry<String, Set<String>> entry : heartbeatAcks.entrySet()) {
+            System.out.println("Request ID: " + entry.getKey() + ", ACKs: " + entry.getValue());
+        }
+    }
 }

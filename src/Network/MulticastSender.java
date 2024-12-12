@@ -24,34 +24,7 @@ public class MulticastSender extends Thread {
 
     @Override
     public void run() {
-        // Thread para monitorar heartbeats sem ACKs
-        new Thread(() -> {
-            while (true) {
-                try {
-                    // Estabelecer conexão com o NodeRegistry remoto
-                    Registry registry = LocateRegistry.getRegistry("localhost"); // Substitua "localhost" pelo IP adequado se necessário
-                    NodeRegistryInterface nodeRegistry = (NodeRegistryInterface) registry.lookup("NodeRegistry");
-
-                    // Obter todos os IDs dos nós registrados
-                    Set<String> nodeIds = nodeRegistry.getNodeIds();
-                    nodeIds.remove(this.uuid); // Remover o ID do líder
-
-                    // Verificar a contagem de heartbeats sem ACKs para cada nó
-                    Map<String, Integer> heartbeatsSemAcksMap = listManager.heartbeatsSemAcks(nodeIds);
-                    for (Map.Entry<String, Integer> entry : heartbeatsSemAcksMap.entrySet()) {
-                        //System.out.println("Heartbeats sem ACKs para o nó " + entry.getKey() + ": " + entry.getValue());
-                    }
-                    
-                    // Espera antes de verificar novamente
-                    Thread.sleep(HEARTBEAT_INTERVAL);
-                } catch (RemoteException | InterruptedException e) {
-                    e.printStackTrace();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
-
+    
         try {
             while (true) {
                 List<String> docs = listManager.allMsgs();
@@ -68,9 +41,10 @@ public class MulticastSender extends Thread {
                         if (ackReceived) {
                             listManager.sendCommitMessage(doc); // Envia o commit
                             listManager.commit(); // Realiza o commit
+                            listManager.printHeartbeatAcks(); // Printa os ACKs recebidos
+                            listManager.heartbeatsSemAcks(uuid); // Printa os heartbeats sem ACKs
                             listManager.addClone(); // Atualiza clones, se necessário
                             System.out.println("Commit realizado para o requestId: " + requestId);
-                            listManager.clearAcks(requestId);
                         } else {
                             System.out.println("Nenhum ACK recebido para o requestId: " + requestId);
                         }
