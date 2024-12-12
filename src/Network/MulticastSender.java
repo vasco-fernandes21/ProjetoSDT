@@ -35,6 +35,13 @@ public class MulticastSender extends Thread {
                     // Obter todos os IDs dos nós registrados
                     Set<String> nodeIds = nodeRegistry.getNodeIds();
                     nodeIds.remove(this.uuid); // Remover o ID do líder
+
+                    // Verificar a contagem de heartbeats sem ACKs para cada nó
+                    Map<String, Integer> heartbeatsSemAcksMap = listManager.heartbeatsSemAcks(nodeIds);
+                    for (Map.Entry<String, Integer> entry : heartbeatsSemAcksMap.entrySet()) {
+                        //System.out.println("Heartbeats sem ACKs para o nó " + entry.getKey() + ": " + entry.getValue());
+                    }
+                    
                     // Espera antes de verificar novamente
                     Thread.sleep(HEARTBEAT_INTERVAL);
                 } catch (RemoteException | InterruptedException e) {
