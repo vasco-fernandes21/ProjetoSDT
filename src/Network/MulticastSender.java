@@ -24,7 +24,6 @@ public class MulticastSender extends Thread {
 
     @Override
     public void run() {
-    
         try {
             while (true) {
                 List<String> docs = listManager.allMsgs();
@@ -33,6 +32,7 @@ public class MulticastSender extends Thread {
                     for (String doc : docs) {
                         String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
                         System.out.println("UUID do líder: " + uuid);
+                        listManager.getReceivers();
                         listManager.sendSyncMessage(doc, requestId);
 
                         // Processar ACKs de forma síncrona
@@ -42,8 +42,7 @@ public class MulticastSender extends Thread {
                             listManager.sendCommitMessage(doc); // Envia o commit
                             listManager.commit(); // Realiza o commit
                             listManager.printHeartbeatAcks(); // Printa os ACKs recebidos
-                            listManager.heartbeatsSemAcks(uuid); // Printa os heartbeats sem ACKs
-                            listManager.addClone(); // Atualiza clones, se necessário
+                            listManager.removeFailures(); // Printa os heartbeats sem ACKs
                             System.out.println("Commit realizado para o requestId: " + requestId);
                         } else {
                             System.out.println("Nenhum ACK recebido para o requestId: " + requestId);
@@ -66,31 +65,41 @@ public class MulticastSender extends Thread {
     private boolean waitForAcks(String requestId, int timeoutMillis) {
         long endTime = System.currentTimeMillis() + timeoutMillis;
         Set<String> acks;
-        int teste;
 
         boolean majorityReceived = false;
 
-        while (System.currentTimeMillis() < endTime) {
-            try {
-                teste = listManager.getAckCounts(requestId);
-                acks = listManager.getAcksForHeartbeat(requestId);
-                //print do numero de acks recebidos
-                System.out.println(teste);
-                if (acks.size() >= 2) { // Verifica se pelo menos dois elementos enviaram um ACK
-                    System.out.println("Majority of ACKs received for requestId: " + requestId);
-                    majorityReceived = true;
-                    break;
+        try {
+            // Obtenha o número total de elementos
+            Set<String> receivers = listManager.getReceivers();
+            int totalElements = receivers.size();
+
+            // Calcule o valor inteiro mais próximo de 2/3 do total de elementos
+            int majorityThreshold = (int) Math.ceil((2.0 / 3.0) * totalElements);
+
+            while (System.currentTimeMillis() < endTime) {
+                try {
+                    int ackCount = listManager.getAckCounts(requestId);
+                    acks = listManager.getAcksForHeartbeat(requestId);
+
+                    if (ackCount >= majorityThreshold) { // Verifica se a maioria dos ACKs foi recebida
+                        System.out.println("Majority of ACKs received for requestId: " + requestId);
+                        majorityReceived = true;
+                        break;
+                    }
+                    long timeLeft = endTime - System.currentTimeMillis();
+                    if (timeLeft <= 0) {
+                        break;
+                    }
+                    // Espera um tempo antes de verificar novamente
+                    Thread.sleep(timeLeft);
+                } catch (RemoteException | InterruptedException e) {
+                    e.printStackTrace();
                 }
-                long timeLeft = endTime - System.currentTimeMillis();
-                if (timeLeft <= 0) {
-                    break;
-                }
-                // Espera um tempo antes de verificar novamente
-                Thread.sleep(timeLeft);
-            } catch (RemoteException | InterruptedException e) {
-                e.printStackTrace();
             }
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
+
         return majorityReceived;
     }
 

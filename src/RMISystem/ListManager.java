@@ -170,7 +170,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     public synchronized void commit() throws RemoteException {
         // Clonar a lista de mensagens antes de apagá-la
         ArrayList<String> clonedList = new ArrayList<>(messageList);
-        System.out.println("Lista clonada antes do commit via RMI: " + clonedList);
+       // System.out.println("Lista clonada antes do commit via RMI: " + clonedList);
 
         // Adiciona documentos confirmados na documentTable
         for (String doc : clonedList) {
@@ -224,16 +224,13 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     }
 
     @Override
-    public synchronized Map<String, Integer> heartbeatsSemAcks(String uuid) throws RemoteException {
+    public synchronized Map<String, Integer> removeFailures() throws RemoteException {
         // Obter todos os IDs dos nós registrados
-        Set<String> nodeIds = getNodeIds();
-
-        //Remove o líder da lista de nós
-        nodeIds.remove(uuid);
+        Set<String> nodeIds = getReceivers();
     
         // Resultado final: Map com o número de heartbeats sem ACK para cada nó
         Map<String, Integer> heartbeatsMissed = new HashMap<>();
-        
+    
         // Lista ordenada de requestIds por ordem de chegada com base nos timestamps
         List<String> requestIds = requestTimestamps.entrySet().stream()
             .sorted(Map.Entry.comparingByValue())
@@ -244,7 +241,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         for (String nodeId : nodeIds) {
             int heartbeatsMissedCount = 0; // Contador de heartbeats perdidos
             boolean ackFound = false; // Flag para indicar se algum ACK foi encontrado
-            
+    
             // Percorre os requestIds do mais recente para o mais antigo
             for (int i = requestIds.size() - 1; i >= 0; i--) {
                 String requestId = requestIds.get(i);
@@ -270,6 +267,11 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     
             // Log do estado após cada iteração
             System.out.println("ID do Nó: " + nodeId + ", Heartbeats desde último ACK: " + heartbeatsMissedCount);
+    
+            // Se o contador atingir 4, remove o receiver
+            if (heartbeatsMissedCount >= 4) {
+                nodeRegistry.removeReceiver(nodeId);
+            }
         }
     
         return heartbeatsMissed;
@@ -278,6 +280,11 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     @Override
     public synchronized Set<String> getNodeIds() throws RemoteException {
         return nodeRegistry.getNodeIds();
+    }
+
+   @Override
+    public synchronized Set<String> getReceivers() throws RemoteException {
+        return nodeRegistry.getReceivers();
     }
 
     // Método para imprimir o conteúdo inteiro do mapa heartbeatAcks

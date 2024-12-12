@@ -28,10 +28,12 @@ public interface ListInterface extends Remote {
     int getAckCounts(String requestId) throws RemoteException;
 
     // Novo método para contar quantos heartbeats passaram desde o último ACK do receiver
-    Map<String, Integer> heartbeatsSemAcks(String uuid) throws RemoteException;
+    Map<String, Integer> removeFailures() throws RemoteException;
 
 
     // Novo método para obter todos os IDs dos nós do NodeRegistry
     Set<String> getNodeIds() throws RemoteException;
     void printHeartbeatAcks() throws RemoteException;
+
+    Set<String> getReceivers() throws RemoteException;
 }

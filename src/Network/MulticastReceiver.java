@@ -2,6 +2,7 @@ package Network;
 
 import RMISystem.ListInterface;
 
+import java.io.Serializable;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
@@ -11,37 +12,24 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 
-public class MulticastReceiver extends Thread {
+public class MulticastReceiver extends Thread implements Serializable {
+    private static final long serialVersionUID = 1L; // Adicione um serialVersionUID
     private final String uuid;
     private final ListInterface listManager;
     private final ConcurrentHashMap<String, String> documentTable = new ConcurrentHashMap<>();
     private final Hashtable<String, String> tempFiles = new Hashtable<>();
 
-    private volatile boolean isRunning = true;
+    private transient volatile boolean isRunning = true; // Marque como transient
+    private transient MulticastSocket socket; // Marque como transient
+    private transient InetAddress group; // Marque como transient
 
     public MulticastReceiver(String uuid, Hashtable<String, String> initialSnapshot, ListInterface listManager) {
         this.uuid = uuid;
         this.listManager = listManager;
-
         // Initialize documentTable with the received snapshot
         for (Map.Entry<String, String> entry : initialSnapshot.entrySet()) {
             documentTable.put(entry.getKey(), entry.getValue().trim());
             System.out.println("Receiver sincronizado: " + entry.getValue().trim());
-        }
-
-        // Obter o estado atual da documentTable do ListManager
-        try {
-            Hashtable<String, String> currentDocumentTable = listManager.getDocumentTable();
-
-            // Comparar e sincronizar diferenças
-            for (Map.Entry<String, String> entry : currentDocumentTable.entrySet()) {
-                if (!documentTable.containsKey(entry.getKey()) || !documentTable.get(entry.getKey()).equals(entry.getValue())) {
-                    documentTable.put(entry.getKey(), entry.getValue().trim());
-                    System.out.println("Documento atualizado no receiver: " + entry.getValue().trim());
-                }
-            }
-        } catch (RemoteException e) {
-            e.printStackTrace();
         }
     }
 
@@ -51,8 +39,9 @@ public class MulticastReceiver extends Thread {
         String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
         int multicastPort = MulticastConfig.MULTICAST_PORT;
 
-        try (MulticastSocket socket = new MulticastSocket(multicastPort)) {
-            InetAddress group = InetAddress.getByName(multicastAddress);
+        try {
+            socket = new MulticastSocket(multicastPort);
+            group = InetAddress.getByName(multicastAddress);
             socket.joinGroup(group); // Junta-se ao grupo multicast
             System.out.println("Aguardando mensagens multicast no grupo " + multicastAddress + ":" + multicastPort);
 
@@ -75,12 +64,26 @@ public class MulticastReceiver extends Thread {
         } catch (Exception e) {
             System.out.println("Erro ao receber mensagens multicast: " + e.getMessage());
             e.printStackTrace();
-        }
+        } 
     }
 
     public void stopRunning() {
         isRunning = false;
-        System.out.println("MulticastReceiver stopped running.");
+        System.out.println("MulticastReceiver parado.");
+    }
+
+    public void endReceiver() {
+        isRunning = false;
+        if (socket != null && group != null) {
+            try {
+                socket.leaveGroup(group); // Sai do grupo multicast
+                socket.close(); // Fecha o socket
+                System.out.println("MulticastReceiver removido do grupo multicast e thread terminada.");
+            } catch (Exception e) {
+                System.out.println("Erro ao sair do grupo multicast: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
 
     public Map<String, String> getDocumentTable() {
@@ -138,7 +141,6 @@ public class MulticastReceiver extends Thread {
             if (tempFiles.containsValue(doc)) {
                 documentTable.put(commitId, doc);
                 System.out.println("Documento confirmado no receiver: " + doc + " com ID: " + commitId);
-
                 // Remove o documento da tempFiles após adicioná-lo à documentTable
                 tempFiles.values().remove(doc);
             } else {
