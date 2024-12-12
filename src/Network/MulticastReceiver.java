@@ -22,10 +22,26 @@ public class MulticastReceiver extends Thread {
     public MulticastReceiver(String uuid, Hashtable<String, String> initialSnapshot, ListInterface listManager) {
         this.uuid = uuid;
         this.listManager = listManager;
+
         // Initialize documentTable with the received snapshot
         for (Map.Entry<String, String> entry : initialSnapshot.entrySet()) {
             documentTable.put(entry.getKey(), entry.getValue().trim());
             System.out.println("Receiver sincronizado: " + entry.getValue().trim());
+        }
+
+        // Obter o estado atual da documentTable do ListManager
+        try {
+            Hashtable<String, String> currentDocumentTable = listManager.getDocumentTable();
+
+            // Comparar e sincronizar diferenças
+            for (Map.Entry<String, String> entry : currentDocumentTable.entrySet()) {
+                if (!documentTable.containsKey(entry.getKey()) || !documentTable.get(entry.getKey()).equals(entry.getValue())) {
+                    documentTable.put(entry.getKey(), entry.getValue().trim());
+                    System.out.println("Documento atualizado no receiver: " + entry.getValue().trim());
+                }
+            }
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
     }
 
@@ -76,6 +92,10 @@ public class MulticastReceiver extends Thread {
     }
 
     private synchronized void receiveSyncMessage(String syncMessage) {
+        if (!isRunning) {
+            return; // Não processa a mensagem se o receiver não estiver rodando
+        }
+
         System.out.println("Sync Message recebido: " + syncMessage);
 
         // Processa a mensagem de sincronização
@@ -102,6 +122,10 @@ public class MulticastReceiver extends Thread {
 
     // Método local para processar a mensagem de commit
     private synchronized void receiveCommitMessage(String commitMessage) {
+        if (!isRunning) {
+            return; // Não processa a mensagem se o receiver não estiver rodando
+        }
+
         System.out.println("Commit Message recebido: " + commitMessage);
 
         // Processa a mensagem de commit, que tem a estrutura: HEARTBEAT:commit:{uuid}:{doc}

@@ -1,13 +1,15 @@
 package Network;
 
 import RMISystem.ListInterface;
-import RMISystem.NodeRegistry;
+import RMISystem.NodeRegistryInterface;
 
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.RemoteException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Map;
 
 public class MulticastSender extends Thread {
     private static final int HEARTBEAT_INTERVAL = 5000; // Intervalo de 5 segundos
@@ -21,41 +23,64 @@ public class MulticastSender extends Thread {
     }
 
     @Override
-public void run() {
-    try {
-        while (true) {
-            List<String> docs = listManager.allMsgs();
+    public void run() {
+        // Thread para monitorar heartbeats sem ACKs
+        new Thread(() -> {
+            while (true) {
+                try {
+                    // Estabelecer conexão com o NodeRegistry remoto
+                    Registry registry = LocateRegistry.getRegistry("localhost"); // Substitua "localhost" pelo IP adequado se necessário
+                    NodeRegistryInterface nodeRegistry = (NodeRegistryInterface) registry.lookup("NodeRegistry");
 
-            if (!docs.isEmpty()) {
-                for (String doc : docs) {
-                    String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
-                    System.out.println("UUID do líder: " + uuid);
-                    listManager.sendSyncMessage(doc, requestId);
-                    boolean ackReceived = waitForAcks(requestId, ACK_TIMEOUT);
-
-                    if (ackReceived) {
-                        listManager.sendCommitMessage(doc); // Envia o commit
-                        listManager.commit(); // Realiza o commit
-                        listManager.addClone(); // Atualiza clones, se necessário
-                        System.out.println("Commit realizado para o requestId: " + requestId);
-                        listManager.clearAcks(requestId);
-                    } else {
-                        System.out.println("Nenhum ACK recebido para o requestId: " + requestId);
-                    }
-
-                    // Aguardar antes de enviar o próximo documento
+                    // Obter todos os IDs dos nós registrados
+                    Set<String> nodeIds = nodeRegistry.getNodeIds();
+                    nodeIds.remove(this.uuid); // Remover o ID do líder
+                    // Espera antes de verificar novamente
                     Thread.sleep(HEARTBEAT_INTERVAL);
+                } catch (RemoteException | InterruptedException e) {
+                    e.printStackTrace();
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            } else {
-                System.out.println("Nenhum documento para sincronizar. Heartbeat de sync não enviado.");
             }
+        }).start();
 
-            Thread.sleep(HEARTBEAT_INTERVAL);
+        try {
+            while (true) {
+                List<String> docs = listManager.allMsgs();
+
+                if (!docs.isEmpty()) {
+                    for (String doc : docs) {
+                        String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
+                        System.out.println("UUID do líder: " + uuid);
+                        listManager.sendSyncMessage(doc, requestId);
+
+                        // Processar ACKs de forma síncrona
+                        boolean ackReceived = waitForAcks(requestId, ACK_TIMEOUT);
+
+                        if (ackReceived) {
+                            listManager.sendCommitMessage(doc); // Envia o commit
+                            listManager.commit(); // Realiza o commit
+                            listManager.addClone(); // Atualiza clones, se necessário
+                            System.out.println("Commit realizado para o requestId: " + requestId);
+                            listManager.clearAcks(requestId);
+                        } else {
+                            System.out.println("Nenhum ACK recebido para o requestId: " + requestId);
+                        }
+
+                        // Aguardar antes de enviar o próximo documento
+                        Thread.sleep(HEARTBEAT_INTERVAL);
+                    }
+                } else {
+                    System.out.println("Nenhum documento para sincronizar. Heartbeat de sync não enviado.");
+                }
+
+                Thread.sleep(HEARTBEAT_INTERVAL);
+            }
+        } catch (RemoteException | InterruptedException e) {
+            e.printStackTrace();
         }
-    } catch (RemoteException | InterruptedException e) {
-        e.printStackTrace();
     }
-}
 
     private boolean waitForAcks(String requestId, int timeoutMillis) {
         long endTime = System.currentTimeMillis() + timeoutMillis;

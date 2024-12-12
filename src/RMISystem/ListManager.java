@@ -17,6 +17,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.Map;
+import java.util.Collections;
+import java.util.HashMap;
 
 public class ListManager extends UnicastRemoteObject implements ListInterface {
     private final String uuid = UUID.randomUUID().toString();
@@ -131,37 +133,37 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         }
     }
 
-    @Override
-    public synchronized void receiveSyncMessage(String syncMessage, String id) throws RemoteException {
-        System.out.println("Sync Message recebido: " + syncMessage);
+    //@Override
+    // public synchronized void receiveSyncMessage(String syncMessage, String id) throws RemoteException {
+       //  System.out.println("Sync Message recebido: " + syncMessage);
     
         // Processa a mensagem de sincronização
-        String[] parts = syncMessage.split(":");
-        if (parts.length >= 4) {
-            String doc = parts[2]; // Documento a ser sincronizado
-            String requestId = parts[3]; // ID do request para o ACK
+         //String[] parts = syncMessage.split(":");
+        // if (parts.length >= 4) {
+         //    String doc = parts[2]; // Documento a ser sincronizado
+        //     String requestId = parts[3]; // ID do request para o ACK
     
             // Verifica se há atualizações pendentes
-            if (!pendingUpdates.isEmpty()) {
-                pendingUpdates.add(syncMessage);
-                System.out.println("Mensagem de sincronização pendente armazenada: " + syncMessage);
-            } else {
+       //      if (!pendingUpdates.isEmpty()) {
+       //          pendingUpdates.add(syncMessage);
+       //          System.out.println("Mensagem de sincronização pendente armazenada: " + syncMessage);
+       //      } else {
                 // Adiciona o documento à lista e marca como atualização pendente
-                addElement(doc.trim());
-                System.out.println("Heartbeat sincronizado com documento: " + doc.trim());
-            }
+       //          addElement(doc.trim());
+       //          System.out.println("Heartbeat sincronizado com documento: " + doc.trim());
+      //       }
     
             // Armazena o documento na estrutura tempFiles
-            String tempFileId = UUID.randomUUID().toString();
-            tempFiles.put(tempFileId, doc.trim());
-            System.out.println("Documento temporário armazenado: " + doc.trim() + " com ID: " + tempFileId);
+       //      String tempFileId = UUID.randomUUID().toString();
+      //       tempFiles.put(tempFileId, doc.trim());
+      //       System.out.println("Documento temporário armazenado: " + doc.trim() + " com ID: " + tempFileId);
     
             // Envia ACK para o líder confirmando o recebimento
-            sendAck(id, requestId);
-        } else {
-            System.out.println("Mensagem de heartbeat inválida: " + syncMessage);
-        }
-    }
+       //      sendAck(id, requestId);
+     //    } else {
+     //        System.out.println("Mensagem de heartbeat inválida: " + syncMessage);
+     //    }
+   //  }
 
     @Override
     public synchronized void sendCommitMessage(String doc) throws RemoteException {
@@ -246,5 +248,55 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         }
         return acks.size();
     }
+
+    @Override
+public synchronized Map<String, Integer> heartbeatsSemAcks(Set<String> nodeIds) {
+    // Resultado final: Map com o número de heartbeats sem ACK para cada nó
+    Map<String, Integer> heartbeatsMissed = new HashMap<>();
+    
+    // Lista ordenada de requestIds por ordem de chegada (supõe-se que já esteja ordenada)
+    List<String> requestIds = new ArrayList<>(heartbeatAcks.keySet());
+
+    // Itera sobre cada nó fornecido
+    for (String nodeId : nodeIds) {
+        int heartbeatsMissedCount = 0; // Contador de heartbeats perdidos
+        boolean ackFound = false; // Flag para indicar se algum ACK foi encontrado
+        
+        // Percorre os requestIds do mais recente para o mais antigo
+        for (int i = requestIds.size() - 1; i >= 0; i--) {
+            String requestId = requestIds.get(i);
+            Set<String> acksForRequest = heartbeatAcks.getOrDefault(requestId, Collections.emptySet());
+
+            if (acksForRequest.contains(nodeId)) {
+                // Se o nó respondeu neste heartbeat, sai do loop
+                ackFound = true;
+                break;
+            } else {
+                // Incrementa o contador se o nó não respondeu
+                heartbeatsMissedCount++;
+            }
+        }
+
+        // Se não foi encontrado nenhum ACK, todos os heartbeats são contados
+        if (!ackFound) {
+            heartbeatsMissedCount = requestIds.size();
+        }
+
+        // Adiciona o resultado no mapa
+        heartbeatsMissed.put(nodeId, heartbeatsMissedCount);
+
+        // Log do estado após cada iteração
+        System.out.println("ID do Nó: " + nodeId + ", Heartbeats desde último ACK: " + heartbeatsMissedCount);
+    }
+
+    return heartbeatsMissed;
+}
+
+    @Override
+    public synchronized Map<String, ListInterface> getNodes() throws RemoteException {
+        return nodeRegistry.getNodes();
+    }
+
+     
     
 }

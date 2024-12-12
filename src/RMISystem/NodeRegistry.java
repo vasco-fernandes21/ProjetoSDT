@@ -1,9 +1,9 @@
-// src/RMISystem/NodeRegistry.java
 package RMISystem;
 
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class NodeRegistry extends UnicastRemoteObject implements NodeRegistryInterface {
@@ -16,7 +16,7 @@ public class NodeRegistry extends UnicastRemoteObject implements NodeRegistryInt
     @Override
     public synchronized void registerNode(String nodeId, ListInterface node) throws RemoteException {
         nodes.put(nodeId, node);
-        System.out.println("Nó registrado: " + nodeId);
+        System.out.println("Nó registado: " + nodeId);
     }
 
     @Override
@@ -32,12 +32,16 @@ public class NodeRegistry extends UnicastRemoteObject implements NodeRegistryInt
 
     @Override
     public synchronized Map<String, ListInterface> getNodes() throws RemoteException {
-        Map<String, ListInterface> nodesCopy = new ConcurrentHashMap<>(nodes);
-        return nodesCopy;
+        return new ConcurrentHashMap<>(nodes);
+    }
+
+    @Override
+    public synchronized Set<String> getNodeIds() throws RemoteException {
+        return nodes.keySet();
     }
 
     private void printRegisteredNodes() {
-        System.out.println("Nós registrados atualmente: ");
+        System.out.println("Nós registados atualmente: ");
         for (Map.Entry<String, ListInterface> entry : nodes.entrySet()) {
             System.out.println("Nó: " + entry.getKey());
         }

@@ -15,12 +15,12 @@ public class RMIRegistrySetup {
             // Liga o NodeRegistry no registro RMI com o nome "NodeRegistry"
             registry.rebind("NodeRegistry", nodeRegistry);
             
-            System.out.println("NodeRegistry está registrado no RMI Registry.");
+            System.out.println("NodeRegistry está registado no RMI Registry.");
             
             // Opcional: Registrar o ListManager também
             ListInterface listManager = new ListManager();
             registry.rebind("ListManager", listManager);
-            System.out.println("ListManager está registrado no RMI Registry.");
+            System.out.println("ListManager está registado no RMI Registry.");
         } catch (Exception e) {
             e.printStackTrace();
         }

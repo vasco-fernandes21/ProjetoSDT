@@ -81,11 +81,7 @@ public class Elemento {
             System.out.println("Elemento " + this.uuid + " parou de receber pacotes.");
 
             // Remover o nó do NodeRegistry
-            try {
-                nodeRegistry.unregisterNode(this.uuid);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            
         }
     }
 
