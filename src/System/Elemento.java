@@ -92,11 +92,23 @@ public class Elemento implements Serializable {
             sender = new MulticastSender(listManager, this.uuid);
             new Thread(sender).start();  // Inicia a thread do sender
 
-            // Registrar o nó no NodeRegistry
-            nodeRegistry.registerNode(this.uuid, listManager);
-
             System.out.println("Node " + this.uuid + " promoted to leader.");
         } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void eliminaLider() {
+        if (sender != null) {
+            sender.interrupt(); // Interrompe a thread do sender
+            sender = null;
+            System.out.println("MulticastSender interrompido para o node: " + this.uuid);
+        }
+
+        try {
+            nodeRegistry.removeReceiver(this.uuid); // Remove o node da lista de nodes
+            System.out.println("Node " + this.uuid + " removido da lista de nodes.");
+        } catch (RemoteException e) {
             e.printStackTrace();
         }
     }

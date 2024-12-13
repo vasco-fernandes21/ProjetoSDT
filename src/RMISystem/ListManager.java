@@ -193,10 +193,10 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(id);
 
         // Log para depuração: confirma o envio do ACK
-      // System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
+      System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
 
         // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
-      //  System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
+      System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
     }
 
     @Override

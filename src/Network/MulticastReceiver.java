@@ -168,6 +168,12 @@ public class MulticastReceiver extends Thread implements Serializable {
             boolean electionInProgress = listManager.isElectionInProgress();
             System.out.println("Election in progress: " + electionInProgress);
             if (!electionInProgress) {
+                // Se este nó for o líder atual, elimine o líder
+                if (state == State.LEADER) {
+                    elemento.eliminaLider();
+                    state = State.FOLLOWER;
+                }
+
                 // Mark the election as in progress
                 listManager.startElection();
 

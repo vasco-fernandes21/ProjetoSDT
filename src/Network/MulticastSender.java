@@ -69,6 +69,8 @@ public class MulticastSender extends Thread {
             Set<String> receivers = listManager.getReceivers();
             int totalElements = receivers.size();
 
+            System.out.println("Total de elementos: " + totalElements);
+
             // Calcula o valor inteiro mais próximo de 2/3 do total de elementos
             int majorityThreshold = (int) Math.ceil((2.0 / 3.0) * totalElements);
 
@@ -76,6 +78,7 @@ public class MulticastSender extends Thread {
                 try {
                     int ackCount = listManager.getAckCounts(requestId);
                     acks = listManager.getAcksForHeartbeat(requestId);
+                    System.out.println("ACKs recebidos: " + ackCount + " para: " + requestId);
 
                     if (ackCount >= majorityThreshold) { // Verifica se a maioria dos ACKs foi recebida
                         System.out.println("Maioria dos ACKs recebidos para: " + requestId);
