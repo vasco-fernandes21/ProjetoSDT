@@ -11,6 +11,7 @@ import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.rmi.RemoteException;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -255,6 +256,25 @@ public class MulticastReceiver extends Thread implements Serializable {
            // System.out.println("tempFiles limpo após o commit.");
         } else {
             System.out.println("Mensagem de commit inválida: " + commitMessage);
+        }
+    }
+
+    public void applyPendingUpdates(List<String> pendingUpdates) {
+        for (String update : pendingUpdates) {
+            if (update.startsWith("REMOVE:")) {
+                String docToRemove = update.substring("REMOVE:".length()).trim();
+                documentTable.values().remove(docToRemove);
+                System.out.println("Documento removido durante a sincronização: " + docToRemove);
+            } else {
+                // Verificar se o documento já está na tabela de documentos
+                if (!documentTable.containsValue(update.trim())) {
+                    String docId = UUID.randomUUID().toString();
+                    documentTable.put(docId, update.trim());
+                    System.out.println("Documento adicionado durante a sincronização: " + update.trim() + " com ID: " + docId);
+                } else {
+                    System.out.println("Documento já existe na tabela de documentos: " + update.trim());
+                }
+            }
         }
     }
 

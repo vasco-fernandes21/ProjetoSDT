@@ -9,8 +9,9 @@ import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.util.UUID;
 import java.util.Hashtable;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
@@ -44,9 +45,16 @@ public class Elemento implements Serializable {
             Hashtable<String, String> snapshot = listManager.getSnapshot();
             System.out.println("Snapshot recebido do líder: " + snapshot);
 
+            // Solicitar atualizações pendentes ao líder
+            List<String> pendingUpdates = listManager.getPendingUpdates();
+            System.out.println("Atualizações pendentes recebidas do líder: " + pendingUpdates);
+
             // Inicializar receiver com o snapshot e listManager
             receiver = new MulticastReceiver(this.uuid, snapshot, listManager, nodeRegistry, this);
             new Thread(receiver).start();  // Inicia a thread do receiver
+
+            // Aplicar atualizações pendentes
+            receiver.applyPendingUpdates(pendingUpdates);
 
             // Adicionar o receiver ao NodeRegistry
             nodeRegistry.addReceiver(this.uuid, receiver);
@@ -81,7 +89,7 @@ public class Elemento implements Serializable {
             Registry registry = LocateRegistry.getRegistry("localhost");
             ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
-            MulticastSender sender = new MulticastSender(listManager, this.uuid);
+            sender = new MulticastSender(listManager, this.uuid);
             new Thread(sender).start();  // Inicia a thread do sender
 
             // Registrar o nó no NodeRegistry
