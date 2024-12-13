@@ -193,10 +193,10 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(id);
 
         // Log para depuração: confirma o envio do ACK
-        System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
+      // System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
 
         // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
-        System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
+      //  System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
     }
 
     @Override
@@ -228,7 +228,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     public synchronized Map<String, Integer> removeFailures() throws RemoteException {
         // Obter todos os IDs dos nós registrados
         Set<String> nodeIds = getReceivers();
-    
+
         // Resultado final: Map com o número de heartbeats sem ACK para cada nó
         Map<String, Integer> heartbeatsMissed = new HashMap<>();
     
@@ -237,7 +237,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
             .sorted(Map.Entry.comparingByValue())
             .map(Map.Entry::getKey)
             .collect(Collectors.toList());
-    
+
         // Itera sobre cada nó fornecido
         for (String nodeId : nodeIds) {
             int heartbeatsMissedCount = 0; // Contador de heartbeats perdidos

@@ -2,6 +2,7 @@ package Network;
 
 import RMISystem.ListInterface;
 import RMISystem.NodeRegistryInterface;
+import System.Elemento;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -23,6 +24,7 @@ public class MulticastReceiver extends Thread implements Serializable {
     private final ConcurrentHashMap<String, String> documentTable = new ConcurrentHashMap<>();
     private final Hashtable<String, String> tempFiles = new Hashtable<>();
     private final NodeRegistryInterface nodeRegistry;
+    private final Elemento elemento;
 
     private transient volatile boolean isRunning = true;
     private transient MulticastSocket socket;
@@ -37,10 +39,11 @@ public class MulticastReceiver extends Thread implements Serializable {
     private int voteCount = 0;
     private static final int LEADER_DETECTION_TIMEOUT = 10000; // 10 segundos
 
-    public MulticastReceiver(String uuid, Hashtable<String, String> initialSnapshot, ListInterface listManager, NodeRegistryInterface nodeRegistry) {
+    public MulticastReceiver(String uuid, Hashtable<String, String> initialSnapshot, ListInterface listManager, NodeRegistryInterface nodeRegistry, Elemento elemento) {
         this.uuid = uuid;
         this.listManager = listManager;
         this.nodeRegistry = nodeRegistry;
+        this.elemento = elemento;
         for (Map.Entry<String, String> entry : initialSnapshot.entrySet()) {
             documentTable.put(entry.getKey(), entry.getValue().trim());
             System.out.println("Receiver sincronizado: " + entry.getValue().trim());
@@ -69,8 +72,7 @@ public class MulticastReceiver extends Thread implements Serializable {
                     socket.receive(packet);
 
                     String message = new String(packet.getData(), 0, packet.getLength());
-                    System.out.println("Mensagem recebida: " + message);
-
+                    // System.out.println("Mensagem recebida: " + message);
                     if (message.startsWith("HEARTBEAT:sync:")) {
                         receiveSyncMessage(message);
                     } else if (message.startsWith("HEARTBEAT:commit:")) {
@@ -144,7 +146,7 @@ public class MulticastReceiver extends Thread implements Serializable {
                 int totalNodes = nodeIds.size();
                 if (voteCount > totalNodes / 2) {
                     state = State.LEADER;
-                    startMulticastSender();
+                    elemento.promoteToLeader();
                     listManager.endElection();
                     System.out.println("Eu sou o líder: " + uuid);
                     lastHeartbeat = System.currentTimeMillis(); // Resetar o lastHeartbeat ao se tornar líder
@@ -160,12 +162,14 @@ public class MulticastReceiver extends Thread implements Serializable {
         sendMessage(message);
     }
 
-    private void startElection() {
+    private synchronized void startElection() {
         try {
             boolean electionInProgress = listManager.isElectionInProgress();
-            //print do valor de electionInProgress
             System.out.println("Election in progress: " + electionInProgress);
             if (!electionInProgress) {
+                // Mark the election as in progress
+                listManager.startElection();
+
                 state = State.CANDIDATE;
                 currentTerm++;
                 votedFor = uuid;
@@ -248,7 +252,7 @@ public class MulticastReceiver extends Thread implements Serializable {
             }
 
             tempFiles.clear();
-            System.out.println("tempFiles limpo após o commit.");
+           // System.out.println("tempFiles limpo após o commit.");
         } else {
             System.out.println("Mensagem de commit inválida: " + commitMessage);
         }
@@ -281,13 +285,8 @@ public class MulticastReceiver extends Thread implements Serializable {
         return tempFiles;
     }
 
-    private void startMulticastSender() {
-        MulticastSender sender = new MulticastSender(listManager, uuid);
-        new Thread(sender).start();
-    }
-
     private void resetElectionTimeout() {
-        // Define um timeout de eleição entre 1.5 e 3 segundos
+        // Define um timeout de eleição entre 0 e 5 segundos
         this.electionTimeout = ThreadLocalRandom.current().nextInt(0, 5001);
         System.out.println("Timeout de eleição definido para: " + electionTimeout + "ms");
     }

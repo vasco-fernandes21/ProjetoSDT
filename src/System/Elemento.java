@@ -5,6 +5,7 @@ import Network.MulticastSender;
 import RMISystem.ListInterface;
 import RMISystem.NodeRegistryInterface;
 
+import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -13,11 +14,13 @@ import java.util.Hashtable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
-public class Elemento {
+public class Elemento implements Serializable {
+    private static final long serialVersionUID = 1L;
     private static final Map<String, MulticastReceiver> receiverMap = new ConcurrentHashMap<>();
     private final String uuid;
-    private MulticastReceiver receiver;
-    private final NodeRegistryInterface nodeRegistry;
+    private transient MulticastReceiver receiver;
+    private transient MulticastSender sender;
+    private final transient NodeRegistryInterface nodeRegistry;
 
     public Elemento() {
         this.uuid = UUID.randomUUID().toString();
@@ -42,8 +45,14 @@ public class Elemento {
             System.out.println("Snapshot recebido do líder: " + snapshot);
 
             // Inicializar receiver com o snapshot e listManager
-            receiver = new MulticastReceiver(this.uuid, snapshot, listManager, nodeRegistry);
+            receiver = new MulticastReceiver(this.uuid, snapshot, listManager, nodeRegistry, this);
             new Thread(receiver).start();  // Inicia a thread do receiver
+
+            // Adicionar o receiver ao NodeRegistry
+            nodeRegistry.addReceiver(this.uuid, receiver);
+            nodeRegistry.registerNode(this.uuid, listManager);
+            receiverMap.put(this.uuid, receiver);
+            
         } catch (Exception e) {
             e.printStackTrace();
         }

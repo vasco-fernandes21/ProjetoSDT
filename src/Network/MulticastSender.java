@@ -3,11 +3,8 @@ package Network;
 import RMISystem.ListInterface;
 import RMISystem.NodeRegistryInterface;
 
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
 import java.rmi.RemoteException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -41,7 +38,6 @@ public class MulticastSender extends Thread {
                         if (ackReceived) {
                             listManager.sendCommitMessage(doc); // Envia o commit
                             listManager.commit(); // Realiza o commit
-                            listManager.printHeartbeatAcks(); // Printa os ACKs recebidos
                             listManager.removeFailures(); // Printa os heartbeats sem ACKs
                             System.out.println("Commit realizado para o requestId: " + requestId);
                         } else {
