@@ -4,28 +4,16 @@ import System.Elemento;
 
 public class TestMulticast {
     public static void main(String[] args) {
-        // Inicializa o líder e os não-líderes simultaneamente
-        System.out.println("A iniciar líder...");
-        Elemento lider = new Elemento(1); // O líder já inicia o MulticastSender
+        // Inicia três elementos
+        Elemento elemento1 = new Elemento();
+        Elemento elemento2 = new Elemento();
+        Elemento elemento3 = new Elemento();
 
-        System.out.println("A iniciar não-líder 1...");
-        Elemento naoLider1 = new Elemento(0); // Não-líder 1 já inicia o receiver
+        // Adiciona os elementos ao mapa de receivers
+        Elemento.getReceiverMap().put(elemento1.getUuid(), elemento1.getReceiver());
+        Elemento.getReceiverMap().put(elemento2.getUuid(), elemento2.getReceiver());
+        Elemento.getReceiverMap().put(elemento3.getUuid(), elemento3.getReceiver());
 
-        System.out.println("A iniciar não-líder 2...");
-        Elemento naoLider2 = new Elemento(0); // Não-líder 2 já inicia o receiver
-
-        System.out.println("A iniciar não-líder 3...");
-        Elemento naoLider3 = new Elemento(0); // Não-líder 3 já inicia o receiver
-
-        // Simular a falha do não-líder 3 após 15 segundos
-        new Thread(() -> {
-            try {
-                Thread.sleep(15000);
-                System.out.println("Falha do não-líder 3...");
-                naoLider3.stopReceiver(); // Para o receiver do não-líder 3
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+        System.out.println("Três elementos foram iniciados.");
     }
 }

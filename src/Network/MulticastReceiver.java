@@ -1,7 +1,9 @@
 package Network;
 
 import RMISystem.ListInterface;
+import RMISystem.NodeRegistryInterface;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -9,62 +11,247 @@ import java.net.MulticastSocket;
 import java.rmi.RemoteException;
 import java.util.Hashtable;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class MulticastReceiver extends Thread implements Serializable {
-    private static final long serialVersionUID = 1L; // Adicione um serialVersionUID
+    private static final long serialVersionUID = 1L;
     private final String uuid;
     private final ListInterface listManager;
     private final ConcurrentHashMap<String, String> documentTable = new ConcurrentHashMap<>();
     private final Hashtable<String, String> tempFiles = new Hashtable<>();
+    private final NodeRegistryInterface nodeRegistry;
 
-    private transient volatile boolean isRunning = true; // Marque como transient
-    private transient MulticastSocket socket; // Marque como transient
-    private transient InetAddress group; // Marque como transient
+    private transient volatile boolean isRunning = true;
+    private transient MulticastSocket socket;
+    private transient InetAddress group;
 
-    public MulticastReceiver(String uuid, Hashtable<String, String> initialSnapshot, ListInterface listManager) {
+    private enum State { FOLLOWER, CANDIDATE, LEADER }
+    private State state = State.FOLLOWER;
+    private int currentTerm = 0;
+    private String votedFor = null;
+    private int electionTimeout;
+    private long lastHeartbeat = System.currentTimeMillis();
+    private int voteCount = 0;
+    private static final int LEADER_DETECTION_TIMEOUT = 10000; // 10 segundos
+
+    public MulticastReceiver(String uuid, Hashtable<String, String> initialSnapshot, ListInterface listManager, NodeRegistryInterface nodeRegistry) {
         this.uuid = uuid;
         this.listManager = listManager;
-        // Initialize documentTable with the received snapshot
+        this.nodeRegistry = nodeRegistry;
         for (Map.Entry<String, String> entry : initialSnapshot.entrySet()) {
             documentTable.put(entry.getKey(), entry.getValue().trim());
             System.out.println("Receiver sincronizado: " + entry.getValue().trim());
         }
+        resetElectionTimeout();
     }
 
     @Override
     public void run() {
-        // Configurações do grupo multicast
         String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
         int multicastPort = MulticastConfig.MULTICAST_PORT;
 
         try {
             socket = new MulticastSocket(multicastPort);
             group = InetAddress.getByName(multicastAddress);
-            socket.joinGroup(group); // Junta-se ao grupo multicast
+            socket.joinGroup(group);
             System.out.println("Aguardando mensagens multicast no grupo " + multicastAddress + ":" + multicastPort);
 
-            byte[] buffer = new byte[1024]; // Buffer para receber mensagens
+            byte[] buffer = new byte[1024];
+            long lastCheck = System.currentTimeMillis();
+
             while (isRunning) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet); // Escuta mensagens do grupo multicast
+                socket.setSoTimeout(1000); // Timeout de 1 segundo para a chamada receive
+                try {
+                    socket.receive(packet);
 
-                String message = new String(packet.getData(), 0, packet.getLength());
+                    String message = new String(packet.getData(), 0, packet.getLength());
+                    System.out.println("Mensagem recebida: " + message);
 
-                // Decide qual método chamar com base no conteúdo da mensagem
-                if (message.startsWith("HEARTBEAT:sync:")) {
-                    receiveSyncMessage(message);
-                } else if (message.startsWith("HEARTBEAT:commit:")) {
-                    receiveCommitMessage(message); // Chama o método local para processar a mensagem de commit
-                } else {
-                    System.out.println("Mensagem desconhecida recebida: " + message);
+                    if (message.startsWith("HEARTBEAT:sync:")) {
+                        receiveSyncMessage(message);
+                    } else if (message.startsWith("HEARTBEAT:commit:")) {
+                        receiveCommitMessage(message);
+                    } else if (message.startsWith("REQUEST_VOTE:")) {
+                        handleRequestVote(message);
+                    } else if (message.startsWith("VOTE_RESPONSE:")) {
+                        handleVoteResponse(message);
+                    } else {
+                        System.out.println("Mensagem desconhecida recebida: " + message);
+                    }
+                } catch (IOException e) {
+                    // Timeout da chamada receive, continuar a execução
+                }
+
+                // Verificação periódica do timeout de detecção de falha do líder
+                if (System.currentTimeMillis() - lastCheck >= 1000) { // Verifica a cada 1 segundo
+                    lastCheck = System.currentTimeMillis();
+                    try {
+                        if (System.currentTimeMillis() - lastHeartbeat > (LEADER_DETECTION_TIMEOUT + electionTimeout)) {
+                            if (state == State.FOLLOWER) {
+                                boolean electionInProgress = listManager.isElectionInProgress();
+                                if (!electionInProgress) {
+                                    System.out.println("Timeout de detecção de líder. A iniciar eleição...");
+                                    startElection();
+                                }
+                            }
+                        }
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         } catch (Exception e) {
             System.out.println("Erro ao receber mensagens multicast: " + e.getMessage());
             e.printStackTrace();
-        } 
+        }
+    }
+
+    private void handleRequestVote(String message) {
+        String[] parts = message.split(":");
+        int term = Integer.parseInt(parts[1]);
+        String candidateId = parts[2];
+
+        if (term > currentTerm) {
+            currentTerm = term;
+            votedFor = null;
+            state = State.FOLLOWER;
+        }
+
+        if (votedFor == null || votedFor.equals(candidateId)) {
+            votedFor = candidateId;
+            sendVoteResponse(candidateId, true);
+            resetElectionTimeout();
+        } else {
+            sendVoteResponse(candidateId, false);
+        }
+
+        // Resetar o lastHeartbeat ao receber uma solicitação de voto
+        lastHeartbeat = System.currentTimeMillis();
+    }
+
+    private void handleVoteResponse(String message) {
+        String[] parts = message.split(":");
+        boolean voteGranted = Boolean.parseBoolean(parts[1]);
+
+        if (state == State.CANDIDATE && voteGranted) {
+            voteCount++;
+            try {
+                Set<String> nodeIds = nodeRegistry.getNodeIds();
+                int totalNodes = nodeIds.size();
+                if (voteCount > totalNodes / 2) {
+                    state = State.LEADER;
+                    startMulticastSender();
+                    listManager.endElection();
+                    System.out.println("Eu sou o líder: " + uuid);
+                    lastHeartbeat = System.currentTimeMillis(); // Resetar o lastHeartbeat ao se tornar líder
+                }
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void sendVoteResponse(String candidateId, boolean voteGranted) {
+        String message = "VOTE_RESPONSE:" + voteGranted;
+        sendMessage(message);
+    }
+
+    private void startElection() {
+        try {
+            boolean electionInProgress = listManager.isElectionInProgress();
+            //print do valor de electionInProgress
+            System.out.println("Election in progress: " + electionInProgress);
+            if (!electionInProgress) {
+                state = State.CANDIDATE;
+                currentTerm++;
+                votedFor = uuid;
+                lastHeartbeat = System.currentTimeMillis();
+                voteCount = 1;
+
+                String message = "REQUEST_VOTE:" + currentTerm + ":" + uuid;
+                sendMessage(message);
+                System.out.println("Eleição iniciada pelo nó: " + uuid);
+            }
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void sendMessage(String message) {
+        try {
+            byte[] buffer = message.getBytes();
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, MulticastConfig.MULTICAST_PORT);
+            socket.send(packet);
+            System.out.println("Mensagem enviada: " + message);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private synchronized void receiveSyncMessage(String syncMessage) {
+        if (!isRunning) {
+            return;
+        }
+
+        lastHeartbeat = System.currentTimeMillis(); // Resetar o lastHeartbeat ao receber um heartbeat
+        System.out.println("Sync Message recebido: " + syncMessage);
+
+        String[] parts = syncMessage.split(":");
+        if (parts.length >= 4) {
+            String doc = parts[2];
+            String requestId = parts[3];
+
+            String tempFileId = UUID.randomUUID().toString();
+            tempFiles.put(tempFileId, doc.trim());
+            System.out.println("Documento temporário armazenado no receiver: " + doc.trim() + " com ID: " + tempFileId);
+
+            try {
+                listManager.sendAck(uuid, requestId);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println("Mensagem de heartbeat inválida: " + syncMessage);
+        }
+    }
+
+    private synchronized void receiveCommitMessage(String commitMessage) {
+        if (!isRunning) {
+            return;
+        }
+
+        lastHeartbeat = System.currentTimeMillis(); // Resetar o lastHeartbeat ao receber um commit
+        System.out.println("Commit Message recebido: " + commitMessage);
+
+        String[] parts = commitMessage.split(":");
+        if (parts.length >= 4) {
+            String commitId = parts[2];
+            String doc = parts[3];
+
+            if (tempFiles.containsValue(doc)) {
+                documentTable.put(commitId, doc);
+                System.out.println("Documento confirmado no receiver: " + doc + " com ID: " + commitId);
+                tempFiles.values().remove(doc);
+            } else {
+                System.out.println("Documento não encontrado na tempFiles: " + doc);
+            }
+
+            for (Map.Entry<String, String> entry : tempFiles.entrySet()) {
+                if (!documentTable.containsValue(entry.getValue())) {
+                    documentTable.put(entry.getKey(), entry.getValue());
+                    System.out.println("Documento confirmado no receiver: " + entry.getValue() + " com ID: " + entry.getKey());
+                }
+            }
+
+            tempFiles.clear();
+            System.out.println("tempFiles limpo após o commit.");
+        } else {
+            System.out.println("Mensagem de commit inválida: " + commitMessage);
+        }
     }
 
     public void stopRunning() {
@@ -76,8 +263,8 @@ public class MulticastReceiver extends Thread implements Serializable {
         isRunning = false;
         if (socket != null && group != null) {
             try {
-                socket.leaveGroup(group); // Sai do grupo multicast
-                socket.close(); // Fecha o socket
+                socket.leaveGroup(group);
+                socket.close();
                 System.out.println("MulticastReceiver removido do grupo multicast e thread terminada.");
             } catch (Exception e) {
                 System.out.println("Erro ao sair do grupo multicast: " + e.getMessage());
@@ -94,72 +281,14 @@ public class MulticastReceiver extends Thread implements Serializable {
         return tempFiles;
     }
 
-    private synchronized void receiveSyncMessage(String syncMessage) {
-        if (!isRunning) {
-            return; // Não processa a mensagem se o receiver não estiver rodando
-        }
-
-        System.out.println("Sync Message recebido: " + syncMessage);
-
-        // Processa a mensagem de sincronização
-        String[] parts = syncMessage.split(":");
-        if (parts.length >= 4) {
-            String doc = parts[2]; // Documento a ser sincronizado
-            String requestId = parts[3]; // ID do request para o ACK
-
-            // Armazena o documento na estrutura tempFiles
-            String tempFileId = UUID.randomUUID().toString();
-            tempFiles.put(tempFileId, doc.trim());
-            System.out.println("Documento temporário armazenado no receiver: " + doc.trim() + " com ID: " + tempFileId);
-
-            // Envia ACK para o líder confirmando o recebimento
-            try {
-                listManager.sendAck(uuid, requestId);
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("Mensagem de heartbeat inválida: " + syncMessage);
-        }
+    private void startMulticastSender() {
+        MulticastSender sender = new MulticastSender(listManager, uuid);
+        new Thread(sender).start();
     }
 
-    // Método local para processar a mensagem de commit
-    private synchronized void receiveCommitMessage(String commitMessage) {
-        if (!isRunning) {
-            return; // Não processa a mensagem se o receiver não estiver rodando
-        }
-
-        System.out.println("Commit Message recebido: " + commitMessage);
-
-        // Processa a mensagem de commit, que tem a estrutura: HEARTBEAT:commit:{uuid}:{doc}
-        String[] parts = commitMessage.split(":");
-        if (parts.length >= 4) {
-            String commitId = parts[2]; // UUID da mensagem de commit
-            String doc = parts[3]; // Documento a ser armazenado
-
-            // Verifica se o documento está na tempFiles antes de adicioná-lo à documentTable
-            if (tempFiles.containsValue(doc)) {
-                documentTable.put(commitId, doc);
-                System.out.println("Documento confirmado no receiver: " + doc + " com ID: " + commitId);
-                // Remove o documento da tempFiles após adicioná-lo à documentTable
-                tempFiles.values().remove(doc);
-            } else {
-                System.out.println("Documento não encontrado na tempFiles: " + doc);
-            }
-
-            // Mover documentos restantes de tempFiles para documentTable
-            for (Map.Entry<String, String> entry : tempFiles.entrySet()) {
-                if (!documentTable.containsValue(entry.getValue())) {
-                    documentTable.put(entry.getKey(), entry.getValue());
-                    System.out.println("Documento confirmado no receiver: " + entry.getValue() + " com ID: " + entry.getKey());
-                }
-            }
-
-            // Limpar tempFiles após o commit
-            tempFiles.clear();
-            System.out.println("tempFiles limpo após o commit.");
-        } else {
-            System.out.println("Mensagem de commit inválida: " + commitMessage);
-        }
+    private void resetElectionTimeout() {
+        // Define um timeout de eleição entre 1.5 e 3 segundos
+        this.electionTimeout = ThreadLocalRandom.current().nextInt(0, 5001);
+        System.out.println("Timeout de eleição definido para: " + electionTimeout + "ms");
     }
 }

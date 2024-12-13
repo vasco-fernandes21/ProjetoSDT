@@ -5,7 +5,7 @@ import Network.MulticastSender;
 import RMISystem.ListInterface;
 import RMISystem.NodeRegistryInterface;
 
-import java.rmi.RemoteException; // Adicione esta linha
+import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.UUID;
@@ -19,7 +19,7 @@ public class Elemento {
     private MulticastReceiver receiver;
     private final NodeRegistryInterface nodeRegistry;
 
-    public Elemento(int lider) {
+    public Elemento() {
         this.uuid = UUID.randomUUID().toString();
         System.out.println("UUID do elemento: " + this.uuid);
 
@@ -32,49 +32,20 @@ public class Elemento {
             throw new RuntimeException("Erro ao conectar ao NodeRegistry", e);
         }
 
-        if (lider == 1) {
-            System.out.println("Processo iniciado como líder.");
-            try {
-                ListInterface listManager = (ListInterface) registry.lookup("ListManager");
+        System.out.println("Processo iniciado como não-líder. A sincronizar...");
 
-                MulticastSender sender = new MulticastSender(listManager, this.uuid);
-                sender.start();  // Inicia a thread do sender
+        try {
+            ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
-                // Registrar o nó no NodeRegistry
-                nodeRegistry.registerNode(this.uuid, listManager);
+            // Solicitar snapshot ao líder
+            Hashtable<String, String> snapshot = listManager.getSnapshot();
+            System.out.println("Snapshot recebido do líder: " + snapshot);
 
-                System.out.println("Líder iniciado com sucesso.");
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("Processo iniciado como não-líder. A sincronizar...");
-
-            try {
-                ListInterface listManager = (ListInterface) registry.lookup("ListManager");
-
-                // Solicitar snapshot ao líder
-                Hashtable<String, String> snapshot = listManager.getSnapshot();
-                System.out.println("Snapshot recebido do líder: " + snapshot);
-
-                // Inicializar receiver com o snapshot e listManager
-                receiver = new MulticastReceiver(this.uuid, snapshot, listManager);
-                receiver.start();  // Inicia a thread do receiver
-
-                // Adicionar o receiver ao mapa
-                receiverMap.put(this.uuid, receiver);
-                nodeRegistry.addReceiver(this.uuid, receiver);
-
-                // Imprimir o mapa
-                System.out.println("Mapa de receivers: " + receiverMap);
-
-                // Registrar o nó no NodeRegistry
-                nodeRegistry.registerNode(this.uuid, listManager);
-
-                System.out.println("Não-líder sincronizado com sucesso.");
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            // Inicializar receiver com o snapshot e listManager
+            receiver = new MulticastReceiver(this.uuid, snapshot, listManager, nodeRegistry);
+            new Thread(receiver).start();  // Inicia a thread do receiver
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -82,34 +53,7 @@ public class Elemento {
         if (receiver != null) {
             receiver.stopRunning();
             System.out.println("Elemento " + this.uuid + " parou de receber pacotes.");
-
-          
         }
-    }
-
-    public static void removeReceiver(String uuid) {
-        MulticastReceiver receiver = receiverMap.get(uuid);
-        // Imprimir o receiverMap
-        System.out.println("Mapa de receivers antes da remoção: " + receiverMap);
-        if (receiver != null) {
-            receiver.endReceiver();
-            receiverMap.remove(uuid);
-            System.out.println("Elemento " + uuid + " removido do grupo de multicast.");
-
-            // Remover o nó do NodeRegistry
-            try {
-                Registry registry = LocateRegistry.getRegistry("localhost");
-                NodeRegistryInterface nodeRegistry = (NodeRegistryInterface) registry.lookup("NodeRegistry");
-                nodeRegistry.removeReceiver(uuid);
-                nodeRegistry.unregisterNode(uuid);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("Elemento " + uuid + " não encontrado.");
-        }
-        // Imprimir o receiverMap após a remoção
-        System.out.println("Mapa de receivers após a remoção: " + receiverMap);
     }
 
     public void promoteToLeader() {
@@ -129,7 +73,7 @@ public class Elemento {
             ListInterface listManager = (ListInterface) registry.lookup("ListManager");
 
             MulticastSender sender = new MulticastSender(listManager, this.uuid);
-            sender.start();  // Inicia a thread do sender
+            new Thread(sender).start();  // Inicia a thread do sender
 
             // Registrar o nó no NodeRegistry
             nodeRegistry.registerNode(this.uuid, listManager);
@@ -148,7 +92,7 @@ public class Elemento {
         return receiver;
     }
 
-    public Map<String, MulticastReceiver> getReceiverMap() {
+    public static Map<String, MulticastReceiver> getReceiverMap() {
         return receiverMap;
     }
 }

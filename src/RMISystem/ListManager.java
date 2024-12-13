@@ -31,6 +31,7 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     private static final ConcurrentHashMap<String, Set<String>> heartbeatAcks = new ConcurrentHashMap<>(); // ACKs para heartbeats
     private static final ConcurrentHashMap<String, Long> requestTimestamps = new ConcurrentHashMap<>(); // Timestamps para requestIds
     private final NodeRegistryInterface nodeRegistry;
+    private boolean electionInProgress = false;
 
     public ListManager() throws RemoteException {
         super();
@@ -287,11 +288,26 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         return nodeRegistry.getReceivers();
     }
 
-    // Método para imprimir o conteúdo inteiro do mapa heartbeatAcks
+    @Override
     public synchronized void printHeartbeatAcks() {
         System.out.println("Conteúdo do mapa heartbeatAcks:");
         for (Map.Entry<String, Set<String>> entry : heartbeatAcks.entrySet()) {
             System.out.println("Request ID: " + entry.getKey() + ", ACKs: " + entry.getValue());
         }
+    }
+
+    @Override
+    public synchronized boolean isElectionInProgress() {
+        return electionInProgress;
+    }
+
+    @Override
+    public synchronized void startElection() {
+        electionInProgress = true;
+    }
+
+    @Override
+    public synchronized void endElection() {
+        electionInProgress = false;
     }
 }
