@@ -11,6 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class NodeRegistry extends UnicastRemoteObject implements NodeRegistryInterface {
     private final Map<String, ListInterface> nodes = new ConcurrentHashMap<>();
     private final Map<String, MulticastReceiver> receiverMap = new ConcurrentHashMap<>();
+    private String leaderID;
+    private boolean electionLock = false;
 
     public NodeRegistry() throws RemoteException {
         super();
@@ -22,18 +24,8 @@ public class NodeRegistry extends UnicastRemoteObject implements NodeRegistryInt
     }
 
     @Override
-    public void unregisterNode(String nodeId) throws RemoteException {
-        nodes.remove(nodeId);
-    }
-
-    @Override
     public ListInterface getNode(String nodeId) throws RemoteException {
         return nodes.get(nodeId);
-    }
-
-    @Override
-    public Map<String, ListInterface> getNodes() throws RemoteException {
-        return nodes;
     }
 
     @Override
@@ -62,15 +54,28 @@ public class NodeRegistry extends UnicastRemoteObject implements NodeRegistryInt
         }
     }
 
-    
-
     @Override
-    public MulticastReceiver getReceiver(String nodeId) throws RemoteException {
-        return receiverMap.get(nodeId);
+    public void setLeaderID(String leaderID) throws RemoteException {
+        this.leaderID = leaderID;
+        System.out.println("Líder definido com ID: " + leaderID);
     }
 
     @Override
     public Set<String> getReceivers() throws RemoteException {
-        return receiverMap.keySet(); // Update return type to Set<String>
+        return receiverMap.keySet();
+    }
+
+    @Override
+    public synchronized boolean acquireElectionLock() throws RemoteException {
+        if (!electionLock) {
+            electionLock = true;
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public synchronized void releaseElectionLock() throws RemoteException {
+        electionLock = false;
     }
 }

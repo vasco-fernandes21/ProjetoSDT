@@ -19,7 +19,7 @@ public interface ListInterface extends Remote {
     void clearPendingUpdates() throws RemoteException;
     void sendSyncMessage(String doc, String requestId) throws RemoteException;
     void sendCommitMessage(String doc) throws RemoteException;
-    void commit() throws RemoteException;
+    void commit(String doc) throws RemoteException;
     void sendAck(String id, String requestId) throws RemoteException;
     void clearAcks(String requestId) throws RemoteException;
     Set<String> getAcksForHeartbeat(String requestId) throws RemoteException;
@@ -33,4 +33,5 @@ public interface ListInterface extends Remote {
     boolean isElectionInProgress() throws RemoteException;
     void startElection() throws RemoteException;
     void endElection() throws RemoteException;
+    
 }

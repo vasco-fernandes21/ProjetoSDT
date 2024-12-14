@@ -168,23 +168,20 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
 
     // Confirma o commit e adiciona os documentos à tabela de documentos
     @Override
-    public synchronized void commit() throws RemoteException {
-        // Clonar a lista de mensagens antes de apagá-la
-        ArrayList<String> clonedList = new ArrayList<>(messageList);
-       // System.out.println("Lista clonada antes do commit via RMI: " + clonedList);
-
-        // Adiciona documentos confirmados na documentTable
-        for (String doc : clonedList) {
-            if (!documentTable.containsValue(doc)) {  // Verifica se o documento já está na tabela
-                String docId = UUID.randomUUID().toString();
-                documentTable.put(docId, doc);
-                System.out.println("Documento confirmado no líder via RMI: " + doc + " com ID: " + docId);
-            }
+    public synchronized void commit(String doc) throws RemoteException {
+        // Verifica se o documento já está na tabela
+        if (!documentTable.containsValue(doc)) {
+            String docId = UUID.randomUUID().toString();
+            documentTable.put(docId, doc);
+            System.out.println("Documento confirmado no líder via RMI: " + doc + " com ID: " + docId);
         }
-
-        // Limpa a lista de mensagens, pois os documentos foram confirmados
-        messageList.clear();
-        System.out.println("Commit confirmado no líder via RMI. Lista de mensagens limpa.");
+    
+        // Remove o documento da lista de mensagens
+        if (messageList.remove(doc)) {
+            System.out.println("Documento removido da lista de mensagens: " + doc);
+        } else {
+            System.out.println("Documento não encontrado na lista de mensagens: " + doc);
+        }
     }
 
     @Override
@@ -193,10 +190,10 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         heartbeatAcks.computeIfAbsent(requestId, k -> new CopyOnWriteArraySet<>()).add(id);
 
         // Log para depuração: confirma o envio do ACK
-      System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
+      // System.out.println("ACK recebido do sender: " + id + " para o requestId: " + requestId);
 
         // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
-      System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
+      // System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
     }
 
     @Override
@@ -310,4 +307,6 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     public synchronized void endElection() {
         electionInProgress = false;
     }
+
+    
 }

@@ -18,6 +18,7 @@ import java.util.Map;
 public class Elemento implements Serializable {
     private static final long serialVersionUID = 1L;
     private static final Map<String, MulticastReceiver> receiverMap = new ConcurrentHashMap<>();
+    private static MulticastSender currentLeaderSender; 
     private final String uuid;
     private transient MulticastReceiver receiver;
     private transient MulticastSender sender;
@@ -27,10 +28,9 @@ public class Elemento implements Serializable {
         this.uuid = UUID.randomUUID().toString();
         System.out.println("UUID do elemento: " + this.uuid);
 
-        // Conectar ao NodeRegistry remoto uma vez e reutilizar a instância
         Registry registry;
         try {
-            registry = LocateRegistry.getRegistry("localhost"); // Substitua "localhost" pelo IP adequado se necessário
+            registry = LocateRegistry.getRegistry("localhost"); 
             nodeRegistry = (NodeRegistryInterface) registry.lookup("NodeRegistry");
         } catch (Exception e) {
             throw new RuntimeException("Erro ao conectar ao NodeRegistry", e);
@@ -84,32 +84,31 @@ public class Elemento implements Serializable {
             }
             System.out.println("Receiver stopped for node: " + this.uuid);
         }
-
+    
         try {
             Registry registry = LocateRegistry.getRegistry("localhost");
             ListInterface listManager = (ListInterface) registry.lookup("ListManager");
-
+    
+            if (currentLeaderSender != null) {
+                currentLeaderSender.stopSender(); /
+                currentLeaderSender = null; 
+            }
+    
+            nodeRegistry.setLeaderID(this.uuid);
+    
             sender = new MulticastSender(listManager, this.uuid);
-            new Thread(sender).start();  // Inicia a thread do sender
-
+            new Thread(sender).start();  
+            currentLeaderSender = sender; 
+    
             System.out.println("Node " + this.uuid + " promoted to leader.");
         } catch (Exception e) {
             e.printStackTrace();
-        }
-    }
-
-    public void eliminaLider() {
-        if (sender != null) {
-            sender.interrupt(); // Interrompe a thread do sender
-            sender = null;
-            System.out.println("MulticastSender interrompido para o node: " + this.uuid);
-        }
-
-        try {
-            nodeRegistry.removeReceiver(this.uuid); // Remove o node da lista de nodes
-            System.out.println("Node " + this.uuid + " removido da lista de nodes.");
-        } catch (RemoteException e) {
-            e.printStackTrace();
+        } finally {
+            try {
+                nodeRegistry.releaseElectionLock();
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
         }
     }
 

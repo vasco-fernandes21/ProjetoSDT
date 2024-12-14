@@ -1,7 +1,6 @@
 package Network;
 
 import RMISystem.ListInterface;
-import RMISystem.NodeRegistryInterface;
 
 import java.rmi.RemoteException;
 import java.util.List;
@@ -13,6 +12,7 @@ public class MulticastSender extends Thread {
     private static final int ACK_TIMEOUT = 2000; // Timeout para esperar ACKs em milissegundos
     private final String uuid;
     private final ListInterface listManager;
+    private volatile boolean running = true; // Flag para controlar o loop
 
     public MulticastSender(ListInterface listManager, String uuid) {
         this.listManager = listManager;
@@ -22,7 +22,7 @@ public class MulticastSender extends Thread {
     @Override
     public void run() {
         try {
-            while (true) {
+            while (running) {
                 List<String> docs = listManager.allMsgs();
 
                 if (!docs.isEmpty()) {
@@ -37,8 +37,8 @@ public class MulticastSender extends Thread {
 
                         if (ackReceived) {
                             listManager.sendCommitMessage(doc); // Envia o commit
-                            listManager.commit(); // Realiza o commit
-                            listManager.removeFailures(); // Printa os heartbeats sem ACKs
+                            listManager.commit(doc); // Realiza o commit
+                            listManager.removeFailures(); // Mostra os heartbeats sem ACKs
                             System.out.println("Commit realizado para o requestId: " + requestId);
                         } else {
                             System.out.println("Nenhum ACK recebido para o requestId: " + requestId);
@@ -54,32 +54,41 @@ public class MulticastSender extends Thread {
                 Thread.sleep(HEARTBEAT_INTERVAL);
             }
         } catch (RemoteException | InterruptedException e) {
-            e.printStackTrace();
+            if (e instanceof InterruptedException) {
+                System.out.println("MulticastSender interrompido.");
+            } else {
+                e.printStackTrace();
+            }
         }
     }
 
     private boolean waitForAcks(String requestId, int timeoutMillis) {
         long endTime = System.currentTimeMillis() + timeoutMillis;
         Set<String> acks;
-
+    
         boolean majorityReceived = false;
-
+    
         try {
             // Obtenha o número total de elementos
             Set<String> receivers = listManager.getReceivers();
             int totalElements = receivers.size();
-
+    
             System.out.println("Total de elementos: " + totalElements);
-
+    
             // Calcula o valor inteiro mais próximo de 2/3 do total de elementos
             int majorityThreshold = (int) Math.ceil((2.0 / 3.0) * totalElements);
-
+    
+            // Permitir que a maioria seja considerada se totalElements for 2 e ackCount for 1
+            if (totalElements == 2) {
+                majorityThreshold = 1;
+            }
+    
             while (System.currentTimeMillis() < endTime) {
                 try {
                     int ackCount = listManager.getAckCounts(requestId);
                     acks = listManager.getAcksForHeartbeat(requestId);
                     System.out.println("ACKs recebidos: " + ackCount + " para: " + requestId);
-
+    
                     if (ackCount >= majorityThreshold) { // Verifica se a maioria dos ACKs foi recebida
                         System.out.println("Maioria dos ACKs recebidos para: " + requestId);
                         majorityReceived = true;
@@ -92,14 +101,27 @@ public class MulticastSender extends Thread {
                     // Espera um tempo antes de verificar novamente
                     Thread.sleep(timeLeft);
                 } catch (RemoteException | InterruptedException e) {
-                    e.printStackTrace();
+                    if (e instanceof InterruptedException) {
+                        System.out.println("MulticastSender interrompido durante waitForAcks.");
+                        return false;
+                    } else {
+                        e.printStackTrace();
+                    }
                 }
             }
         } catch (RemoteException e) {
             e.printStackTrace();
         }
-
+    
         return majorityReceived;
+    }
+
+    public void stopSender() {
+        running = false;
+        //remove do multicast
+
+        
+        this.interrupt(); // Interrompe a thread se estiver em espera
     }
 
     public String getLiderId() {

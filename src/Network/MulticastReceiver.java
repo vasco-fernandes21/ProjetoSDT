@@ -166,23 +166,28 @@ public class MulticastReceiver extends Thread implements Serializable {
     private synchronized void startElection() {
         try {
             boolean electionInProgress = listManager.isElectionInProgress();
-            System.out.println("Election in progress: " + electionInProgress);
             if (!electionInProgress) {
+                // Adquirir o bloqueio de eleição
+                boolean lockAcquired = nodeRegistry.acquireElectionLock();
+                if (!lockAcquired) {
+                    System.out.println("Bloqueio de eleição já adquirido por outro nó.");
+                    return;
+                }
+    
                 // Se este nó for o líder atual, elimine o líder
                 if (state == State.LEADER) {
-                    elemento.eliminaLider();
                     state = State.FOLLOWER;
                 }
-
-                // Mark the election as in progress
+    
+                // Iniciar eleição
                 listManager.startElection();
-
+    
                 state = State.CANDIDATE;
                 currentTerm++;
                 votedFor = uuid;
                 lastHeartbeat = System.currentTimeMillis();
                 voteCount = 1;
-
+    
                 String message = "REQUEST_VOTE:" + currentTerm + ":" + uuid;
                 sendMessage(message);
                 System.out.println("Eleição iniciada pelo nó: " + uuid);
