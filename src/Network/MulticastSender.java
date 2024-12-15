@@ -32,7 +32,7 @@ public class MulticastSender extends Thread {
                         listManager.getReceivers();
                         listManager.sendHeartbeat("sync", doc, requestId);
 
-                        // Processar ACKs de forma síncrona
+                        // Proc essar ACKs de forma síncrona
                         boolean ackReceived = waitForAcks(requestId, ACK_TIMEOUT);
 
                         if (ackReceived) {

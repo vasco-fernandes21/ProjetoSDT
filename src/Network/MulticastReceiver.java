@@ -329,7 +329,7 @@ public class MulticastReceiver extends Thread implements Serializable {
                     if (parts.length == 2) {
                         String oldDoc = parts[0].trim();
                         String newDoc = parts[1].trim();
-
+    
                         if (documentTable.containsValue(oldDoc)) {
                             // Remove o documento antigo
                             documentTable.values().remove(oldDoc);
@@ -344,7 +344,14 @@ public class MulticastReceiver extends Thread implements Serializable {
                         System.out.println("Formato inválido para mensagem de atualização: " + update);
                     }
                 } else {
-                    System.out.println("Mensagem desconhecida durante a verificação de atualizações: " + update);
+                    // Verificar se o documento já está na tabela de documentos
+                    if (!documentTable.containsValue(update.trim())) {
+                        String docId = UUID.randomUUID().toString();
+                        documentTable.put(docId, update.trim());
+                        System.out.println("Documento adicionado durante a verificação de atualizações: " + update.trim() + " com ID: " + docId);
+                    } else {
+                        System.out.println("Documento já existe na tabela de documentos: " + update.trim());
+                    }
                 }
             }
         } catch (RemoteException e) {
