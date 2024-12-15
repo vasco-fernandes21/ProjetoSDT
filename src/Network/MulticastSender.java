@@ -118,13 +118,7 @@ public class MulticastSender extends Thread {
 
     public void stopSender() {
         running = false;
-        //remove do multicast
-
-
         this.interrupt(); // Interrompe a thread se estiver em espera
     }
 
-    public String getLiderId() {
-        return uuid;
-    }
 }

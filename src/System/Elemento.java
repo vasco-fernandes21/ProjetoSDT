@@ -80,7 +80,7 @@ public class Elemento implements Serializable {
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
-            System.out.println("Receiver stopped for node: " + this.uuid);
+            System.out.println("Receiver interrompido para o nó: " + this.uuid);
         }
     
         try {
@@ -98,7 +98,7 @@ public class Elemento implements Serializable {
             new Thread(sender).start();  
             currentLeaderSender = sender; 
     
-            System.out.println("Node " + this.uuid + " promoted to leader.");
+            System.out.println("Nó " + this.uuid + " foi promovido para líder.");
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

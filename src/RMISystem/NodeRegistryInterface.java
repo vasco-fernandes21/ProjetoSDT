@@ -13,7 +13,6 @@ public interface NodeRegistryInterface extends Remote {
 
     // Métodos para gerenciar receivers
     void addReceiver(String nodeId, MulticastReceiver receiver) throws RemoteException;
-    void deleteReceiver(String nodeId) throws RemoteException;
     void removeReceiver(String nodeId) throws RemoteException;
     Set<String> getReceivers() throws RemoteException;
 

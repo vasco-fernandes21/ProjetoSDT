@@ -73,8 +73,6 @@ public class MulticastReceiver extends Thread implements Serializable {
                 try {
                     socket.receive(packet);
                     String message = new String(packet.getData(), 0, packet.getLength());
-                    //print da mensagem
-                    System.out.println("Mensagem recebida: " + message);
                     receiveHeartbeat(message);
                 } catch (IOException e) {
                     // Timeout da chamada receive, continuar a execução
@@ -305,7 +303,6 @@ public class MulticastReceiver extends Thread implements Serializable {
             byte[] buffer = message.getBytes();
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, MulticastConfig.MULTICAST_PORT);
             socket.send(packet);
-            System.out.println("Mensagem enviada: " + message);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -313,22 +310,41 @@ public class MulticastReceiver extends Thread implements Serializable {
 
     public void applyPendingUpdates() {
         try {
-            List<String> pendingUpdates = listManager.getPendingUpdates();
+            List<String> pendingUpdates = listManager.getPendingUpdates(); // Obtém atualizações pendentes do ListManager
             for (String update : pendingUpdates) {
-                if (update.startsWith("REMOVE:")) {
-                    String docToRemove = update.substring("REMOVE:".length()).trim();
+                //print updates
+                System.out.println("Aplicando atualização pendente: " + update);
+                if (update.startsWith("DELETE:")) {
+                    // Processa mensagens DELETE
+                    String docToRemove = update.substring("DELETE:".length()).trim();
                     if (documentTable.containsValue(docToRemove)) {
-                        documentTable.values().remove(docToRemove);
+                        documentTable.values().remove(docToRemove); // Remove o documento da tabela
                         System.out.println("Documento removido durante a verificação de atualizações: " + docToRemove);
+                    } else {
+                        System.out.println("Documento para remoção não encontrado: " + docToRemove);
+                    }
+                } else if (update.startsWith("UPDATE:")) {
+                    // Processa mensagens UPDATE
+                    String[] parts = update.substring("UPDATE:".length()).split(",", 2); // Divide em oldDoc e newDoc
+                    if (parts.length == 2) {
+                        String oldDoc = parts[0].trim();
+                        String newDoc = parts[1].trim();
+
+                        if (documentTable.containsValue(oldDoc)) {
+                            // Remove o documento antigo
+                            documentTable.values().remove(oldDoc);
+                            // Adiciona o novo documento
+                            String newDocId = UUID.randomUUID().toString();
+                            documentTable.put(newDocId, newDoc);
+                            System.out.println("Documento atualizado durante a verificação de atualizações: " + oldDoc + " para " + newDoc);
+                        } else {
+                            System.out.println("Documento antigo não encontrado para atualização: " + oldDoc);
+                        }
+                    } else {
+                        System.out.println("Formato inválido para mensagem de atualização: " + update);
                     }
                 } else {
-                    if (!documentTable.containsValue(update.trim())) {
-                        String docId = UUID.randomUUID().toString();
-                        documentTable.put(docId, update.trim());
-                        System.out.println("Documento adicionado durante a verificação de atualizações: " + update.trim() + " com ID: " + docId);
-                    } else {
-                        System.out.println("Documento já existe na tabela de documentos: " + update.trim());
-                    }
+                    System.out.println("Mensagem desconhecida durante a verificação de atualizações: " + update);
                 }
             }
         } catch (RemoteException e) {
@@ -339,28 +355,6 @@ public class MulticastReceiver extends Thread implements Serializable {
     public void stopRunning() {
         isRunning = false;
         System.out.println("MulticastReceiver parado.");
-    }
-
-    public void endReceiver() {
-        isRunning = false;
-        if (socket != null && group != null) {
-            try {
-                socket.leaveGroup(group);
-                socket.close();
-                System.out.println("MulticastReceiver removido do grupo multicast e thread terminada.");
-            } catch (Exception e) {
-                System.out.println("Erro ao sair do grupo multicast: " + e.getMessage());
-                e.printStackTrace();
-            }
-        }
-    }
-
-    public Map<String, String> getDocumentTable() {
-        return documentTable;
-    }
-
-    public Hashtable<String, String> getTempFiles() {
-        return tempFiles;
     }
 
     private void resetElectionTimeout() {

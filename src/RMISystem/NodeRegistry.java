@@ -35,12 +35,6 @@ public class NodeRegistry extends UnicastRemoteObject implements NodeRegistryInt
     }
 
     @Override
-    public void deleteReceiver(String nodeId) throws RemoteException {
-        receiverMap.remove(nodeId);
-        System.out.println("Receiver " + nodeId + " removido do receiverMap.");
-    }
-
-    @Override
     public void removeReceiver(String nodeId) throws RemoteException {
         MulticastReceiver receiver = receiverMap.get(nodeId);
         if (receiver != null) {

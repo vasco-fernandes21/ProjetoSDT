@@ -136,13 +136,6 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         return new ArrayList<>(pendingUpdates);
     }
 
-    // Limpa as atualizações pendentes
-    @Override
-    public synchronized void clearPendingUpdates() throws RemoteException {
-        pendingUpdates.clear();
-        System.out.println("Atualizações pendentes limpas via RMI.");
-    }
-
     // Envia uma mensagem de heartbeat
     public synchronized void sendHeartbeat(String type, String doc, String requestId) throws RemoteException {
         
@@ -206,12 +199,6 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
 
         // Log adicional: imprime todos os UUIDs que enviaram ACK para este requestId
       // System.out.println("ACKs acumulados para o requestId " + requestId + " -> " + heartbeatAcks.get(requestId));
-    }
-
-    @Override
-    public synchronized void clearAcks(String requestId) throws RemoteException {
-        heartbeatAcks.remove(requestId);
-        requestTimestamps.remove(requestId); // Remove o timestamp associado ao requestId
     }
 
     @Override
@@ -285,11 +272,6 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         }
     
         return heartbeatsMissed;
-    }
-
-    @Override
-    public synchronized Set<String> getNodeIds() throws RemoteException {
-        return nodeRegistry.getNodeIds();
     }
 
    @Override
