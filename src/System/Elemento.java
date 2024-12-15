@@ -53,8 +53,6 @@ public class Elemento implements Serializable {
             receiver = new MulticastReceiver(this.uuid, snapshot, listManager, nodeRegistry, this);
             new Thread(receiver).start();  // Inicia a thread do receiver
 
-            // Aplicar atualizações pendentes
-            receiver.applyPendingUpdates(pendingUpdates);
 
             // Adicionar o receiver ao NodeRegistry
             nodeRegistry.addReceiver(this.uuid, receiver);
@@ -90,7 +88,7 @@ public class Elemento implements Serializable {
             ListInterface listManager = (ListInterface) registry.lookup("ListManager");
     
             if (currentLeaderSender != null) {
-                currentLeaderSender.stopSender(); /
+                currentLeaderSender.stopSender();
                 currentLeaderSender = null; 
             }
     

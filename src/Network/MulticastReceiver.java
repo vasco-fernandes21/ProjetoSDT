@@ -50,6 +50,7 @@ public class MulticastReceiver extends Thread implements Serializable {
             System.out.println("Receiver sincronizado: " + entry.getValue().trim());
         }
         resetElectionTimeout();
+        applyPendingUpdates();
     }
 
     @Override
@@ -270,22 +271,28 @@ public class MulticastReceiver extends Thread implements Serializable {
         }
     }
 
-    public void applyPendingUpdates(List<String> pendingUpdates) {
-        for (String update : pendingUpdates) {
-            if (update.startsWith("REMOVE:")) {
-                String docToRemove = update.substring("REMOVE:".length()).trim();
-                documentTable.values().remove(docToRemove);
-                System.out.println("Documento removido durante a sincronização: " + docToRemove);
-            } else {
-                // Verificar se o documento já está na tabela de documentos
-                if (!documentTable.containsValue(update.trim())) {
-                    String docId = UUID.randomUUID().toString();
-                    documentTable.put(docId, update.trim());
-                    System.out.println("Documento adicionado durante a sincronização: " + update.trim() + " com ID: " + docId);
+    public void applyPendingUpdates() {
+        try {
+            List<String> pendingUpdates = listManager.getPendingUpdates();
+            for (String update : pendingUpdates) {
+                if (update.startsWith("REMOVE:")) {
+                    String docToRemove = update.substring("REMOVE:".length()).trim();
+                    if (documentTable.containsValue(docToRemove)) {
+                        documentTable.values().remove(docToRemove);
+                        System.out.println("Documento removido durante a verificação de atualizações: " + docToRemove);
+                    }
                 } else {
-                    System.out.println("Documento já existe na tabela de documentos: " + update.trim());
+                    if (!documentTable.containsValue(update.trim())) {
+                        String docId = UUID.randomUUID().toString();
+                        documentTable.put(docId, update.trim());
+                        System.out.println("Documento adicionado durante a verificação de atualizações: " + update.trim() + " com ID: " + docId);
+                    } else {
+                        System.out.println("Documento já existe na tabela de documentos: " + update.trim());
+                    }
                 }
             }
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
     }
 

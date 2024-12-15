@@ -175,7 +175,9 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
             documentTable.put(docId, doc);
             System.out.println("Documento confirmado no líder via RMI: " + doc + " com ID: " + docId);
         }
-    
+        
+        pendingUpdates.remove(doc); // Remove o documento da lista de atualizações pendentes
+
         // Remove o documento da lista de mensagens
         if (messageList.remove(doc)) {
             System.out.println("Documento removido da lista de mensagens: " + doc);

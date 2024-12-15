@@ -23,10 +23,6 @@ public class NodeRegistry extends UnicastRemoteObject implements NodeRegistryInt
         nodes.put(nodeId, node);
     }
 
-    @Override
-    public ListInterface getNode(String nodeId) throws RemoteException {
-        return nodes.get(nodeId);
-    }
 
     @Override
     public Set<String> getNodeIds() throws RemoteException {
