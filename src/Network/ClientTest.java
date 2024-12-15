@@ -39,7 +39,7 @@ public class ClientTest {
 
     public void removeDoc(String document) {
         try {
-            listManager.removeElement(document);
+            listManager.deleteElement(document);
             System.out.println("Documento removido do líder: " + document);
         } catch (Exception e) {
             e.printStackTrace();
@@ -58,7 +58,7 @@ public class ClientTest {
 
         // Verificar se os documentos foram adicionados
         try {
-            System.out.println("Documentos no líder: " + client.listManager.allMsgs());
+            System.out.println("Lista de mensagens no líder: " + client.listManager.allMsgs());
         } catch (Exception e) {
             e.printStackTrace();
         }

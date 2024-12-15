@@ -10,15 +10,15 @@ import java.util.Set;
 
 public interface ListInterface extends Remote {
     void addElement(String s) throws RemoteException;
-    void removeElement(String s) throws RemoteException;
+    void updateElement(String oldDoc, String newDoc) throws RemoteException;
+    void deleteElement(String s) throws RemoteException;
     ArrayList<String> allMsgs() throws RemoteException;
     void addClone() throws RemoteException;
     Hashtable<String, String> getSnapshot() throws RemoteException;
     Hashtable<String, String> getDocumentTable() throws RemoteException;
     List<String> getPendingUpdates() throws RemoteException;
     void clearPendingUpdates() throws RemoteException;
-    void sendSyncMessage(String doc, String requestId) throws RemoteException;
-    void sendCommitMessage(String doc) throws RemoteException;
+    void sendHeartbeat(String type, String doc, String requestId) throws RemoteException;
     void commit(String doc) throws RemoteException;
     void sendAck(String id, String requestId) throws RemoteException;
     void clearAcks(String requestId) throws RemoteException;

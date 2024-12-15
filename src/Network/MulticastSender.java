@@ -30,13 +30,13 @@ public class MulticastSender extends Thread {
                         String requestId = UUID.randomUUID().toString(); // Gera um novo UUID para cada heartbeat
                         System.out.println("UUID do líder: " + uuid);
                         listManager.getReceivers();
-                        listManager.sendSyncMessage(doc, requestId);
+                        listManager.sendHeartbeat("sync", doc, requestId);
 
                         // Processar ACKs de forma síncrona
                         boolean ackReceived = waitForAcks(requestId, ACK_TIMEOUT);
 
                         if (ackReceived) {
-                            listManager.sendCommitMessage(doc); // Envia o commit
+                            listManager.sendHeartbeat("commit", doc, requestId); // Envia o commit
                             listManager.commit(doc); // Realiza o commit
                             listManager.removeFailures(); // Mostra os heartbeats sem ACKs
                             System.out.println("Commit realizado para o requestId: " + requestId);
@@ -120,7 +120,7 @@ public class MulticastSender extends Thread {
         running = false;
         //remove do multicast
 
-        
+
         this.interrupt(); // Interrompe a thread se estiver em espera
     }
 

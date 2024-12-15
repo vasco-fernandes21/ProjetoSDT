@@ -53,20 +53,52 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
     public synchronized void addElement(String s) throws RemoteException {
         String[] messages = s.split(",");
         for (String message : messages) {
+            String requestId = UUID.randomUUID().toString();
             messageList.add(message.trim()); // Adiciona apenas na lista de mensagens
             pendingUpdates.add(message.trim()); // Marca como atualização pendente
             System.out.println("Documento adicionado no líder via RMI: " + message.trim());
         }
-        System.out.println("Lista de documentos no líder via RMI: " + messageList);
+        System.out.println("Lista de mensagens no líder via RMI: " + messageList);
     }
 
+    @Override
+    public synchronized void updateElement(String oldDoc, String newDoc) throws RemoteException {
+        String oldDocId = null;
+        for (Map.Entry<String, String> entry : documentTable.entrySet()) {
+            if (entry.getValue().equals(oldDoc)) {
+                oldDocId = entry.getKey();
+                break;
+            }
+        }
+    
+        if (oldDocId != null) {
+            documentTable.remove(oldDocId);
+            String newDocId = UUID.randomUUID().toString();
+            documentTable.put(newDocId, newDoc);
+            pendingUpdates.add("UPDATE:" + oldDoc + "," + newDoc); // Marca como atualização pendente
+            System.out.println("Documento atualizado no líder via RMI: " + oldDoc + " para " + newDoc);
+            sendHeartbeat("update", oldDoc + "," + newDoc, newDocId);
+        } else {
+            System.out.println("Documento não encontrado para atualização no líder via RMI: " + oldDoc);
+        }
+    }
+    
     // Remove um elemento da lista de forma sincronizada
     @Override
-    public synchronized void removeElement(String s) throws RemoteException {
-        if (messageList.contains(s)) {
-            messageList.remove(s);
-            pendingUpdates.add("REMOVE:" + s); // Adiciona a atualização pendente de remoção
+    public synchronized void deleteElement(String s) throws RemoteException {
+        String docId = null;
+        for (Map.Entry<String, String> entry : documentTable.entrySet()) {
+            if (entry.getValue().equals(s)) {
+                docId = entry.getKey();
+                break;
+            }
+        }
+    
+        if (docId != null) {
+            documentTable.remove(docId);
+            pendingUpdates.add("DELETE:" + s); // Adiciona a atualização pendente de remoção
             System.out.println("Documento removido no líder via RMI: " + s);
+            sendHeartbeat("delete", s, docId);
         } else {
             System.out.println("Documento não encontrado para remoção no líder via RMI: " + s);
         }
@@ -111,11 +143,11 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
         System.out.println("Atualizações pendentes limpas via RMI.");
     }
 
-    // Envia uma mensagem de sincronização
-    @Override
-    public synchronized void sendSyncMessage(String doc, String requestId) throws RemoteException {
-        String syncMessage = "HEARTBEAT:sync:" + doc + ":" + requestId;
-        System.out.println("Sync Message enviado: " + syncMessage);
+    // Envia uma mensagem de heartbeat
+    public synchronized void sendHeartbeat(String type, String doc, String requestId) throws RemoteException {
+        
+        String message = "HEARTBEAT:" + type + ":" + doc + ":" + requestId;
+        System.out.println("Heartbeat Message enviado: " + message);
 
         // Armazena o timestamp do requestId
         requestTimestamps.put(requestId, System.currentTimeMillis());
@@ -128,40 +160,18 @@ public class ListManager extends UnicastRemoteObject implements ListInterface {
             InetAddress group = InetAddress.getByName(multicastAddress);
 
             // Constrói o pacote de mensagem
-            byte[] buffer = syncMessage.getBytes();
+            byte[] buffer = message.getBytes();
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, multicastPort);
 
             // Envia o pacote para o grupo multicast
             socket.send(packet);
+
+            if (type.equals("commit")) {
+                commit(doc);
+            }
 
         } catch (Exception e) {
             System.out.println("Erro ao enviar mensagem em multicast: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    @Override
-    public synchronized void sendCommitMessage(String doc) throws RemoteException {
-        String commitMessage = "HEARTBEAT:commit:" + UUID.randomUUID().toString() + ":" + doc;
-        System.out.println("Commit Message enviado: " + commitMessage);
-
-        // Configurações do grupo multicast
-        String multicastAddress = MulticastConfig.MULTICAST_ADDRESS;
-        int multicastPort = MulticastConfig.MULTICAST_PORT;
-
-        try (DatagramSocket socket = new DatagramSocket()) {
-            InetAddress group = InetAddress.getByName(multicastAddress);
-
-            // Constrói o pacote de mensagem
-            byte[] buffer = commitMessage.getBytes();
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, multicastPort);
-
-            // Envia o pacote para o grupo multicast
-            socket.send(packet);
-
-            System.out.println("Mensagem de commit enviada: " + commitMessage);
-        } catch (Exception e) {
-            System.out.println("Erro ao enviar mensagem de commit em multicast: " + e.getMessage());
             e.printStackTrace();
         }
     }
